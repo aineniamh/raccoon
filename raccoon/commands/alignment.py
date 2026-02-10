@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Alignment subcommand wrapper."""
+import os
+import logging
+
+
+def main(args):
+    """Run alignment QC using functions from raccoon.utils.
+
+    Expects an argparse Namespace with attributes added by the top-level parser.
+    """
+    if not hasattr(args, 'alignment'):
+        raise ValueError("Expected argparse Namespace from raccoon.command.build_parser")
+
+    logging.info("Starting alignment QC")
+    try:
+        # lazy import to keep module lightweight at import-time
+        from raccoon.utils import alignment_functions as af
+        from raccoon.utils import io
+
+        outdir = args.output_dir or os.getcwd()
+        
+        # validate output directory
+        if not io.ensure_output_directory(outdir):
+            return 1
+        
+        # validate input files
+        if not io.validate_alignment_file(args.alignment):
+            return 1
+        
+        genbank = getattr(args, 'genbank', None)
+        if genbank and not io.validate_genbank_file(genbank):
+            return 1
+        
+        reference = getattr(args, 'reference_id', None)
+        n_threshold = getattr(args, 'n_threshold', 0.2)
+        cluster_window = getattr(args, 'cluster_window', 10)
+        cluster_count = getattr(args, 'cluster_count', 3)
+
+        summary = af.run_alignment_qc(
+            args.alignment,
+            outdir=outdir,
+            genbank_path=genbank,
+            reference_id=reference,
+            n_threshold=n_threshold,
+            cluster_window=cluster_window,
+            cluster_count=cluster_count,
+        )
+
+        logging.info("Alignment QC completed")
+        logging.info(f"High N sequences: {len(summary['high_n_sequences'])}")
+        logging.info(f"Sites to mask: {len(summary['sites_to_mask'])}")
+
+        # write a summary file
+        summary_file = os.path.join(outdir, 'alignment_qc_summary.txt')
+        with open(summary_file, 'w') as fw:
+            fw.write(f"issues_found: {summary['issues_found']}\n")
+            fw.write(f"high_n_sequences: {len(summary['high_n_sequences'])}\n")
+            fw.write(f"sites_to_mask: {len(summary['sites_to_mask'])}\n")
+            fw.write(f"mask_file: {summary['mask_file']}\n")
+
+        logging.info(f"Summary written to {summary_file}")
+        return 0
+    except FileNotFoundError as exc:
+        logging.error(str(exc))
+        return 1
+    except Exception:
+        logging.exception("Alignment QC failed")
+        return 2
