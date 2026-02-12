@@ -37,6 +37,10 @@ def main(args):
         n_threshold = getattr(args, rc.KEY_N_THRESHOLD, rc.DEFAULT_N_THRESHOLD)
         cluster_window = getattr(args, rc.KEY_CLUSTER_WINDOW, rc.DEFAULT_CLUSTER_WINDOW)
         cluster_count = getattr(args, rc.KEY_CLUSTER_COUNT, rc.DEFAULT_CLUSTER_COUNT)
+        mask_clustered = getattr(args, rc.KEY_MASK_CLUSTERED, True) 
+        mask_n_adjacent = getattr(args, rc.KEY_MASK_N_ADJACENT, True) 
+        mask_gap_adjacent = getattr(args, rc.KEY_MASK_GAP_ADJACENT, True) 
+        mask_frame_break = getattr(args, rc.KEY_MASK_FRAME_BREAK, True)
 
         summary = af.run_alignment_qc(
             args.alignment,
@@ -46,10 +50,10 @@ def main(args):
             n_threshold=n_threshold,
             cluster_window=cluster_window,
             cluster_count=cluster_count,
-            mask_clustered=getattr(args, 'mask_clustered', True),
-            mask_n_adjacent=getattr(args, 'mask_n_adjacent', True),
-            mask_gap_adjacent=getattr(args, 'mask_gap_adjacent', True),
-            mask_frame_break=getattr(args, 'mask_frame_break', True),
+            mask_clustered=mask_clustered,
+            mask_n_adjacent=mask_n_adjacent,
+            mask_gap_adjacent=mask_gap_adjacent,
+            mask_frame_break=mask_frame_break,
         )
 
         logging.info("Alignment QC completed")
