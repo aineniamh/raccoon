@@ -25,6 +25,10 @@ def build_parser():
     a.add_argument('--n-threshold', type=float, default=0.2, dest='n_threshold', help='N content threshold for flagging (default: 0.2)')
     a.add_argument('--cluster-window', type=int, default=10, dest='cluster_window', help='Window size for clustered SNP detection (default: 10bp)')
     a.add_argument('--cluster-count', type=int, default=3, dest='cluster_count', help='Min SNPs in window to flag as clustered (default: 3)')
+    a.add_argument('--mask-clustered', default=True, action=argparse.BooleanOptionalAction, dest='mask_clustered', help='Mask clustered SNPs (default: True)')
+    a.add_argument('--mask-n-adjacent', default=True, action=argparse.BooleanOptionalAction, dest='mask_n_adjacent', help='Mask SNPs adjacent to Ns (default: True)')
+    a.add_argument('--mask-gap-adjacent', default=True, action=argparse.BooleanOptionalAction, dest='mask_gap_adjacent', help='Mask SNPs adjacent to gaps (default: True)')
+    a.add_argument('--mask-frame-break', default=True, action=argparse.BooleanOptionalAction, dest='mask_frame_break', help='Mask frame-breaking indels (default: True)')
     a.set_defaults(func=alignment_cmd.main)
 
     p = sub.add_parser('phylo', help='phylogenetic QC')

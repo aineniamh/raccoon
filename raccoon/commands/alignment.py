@@ -3,6 +3,7 @@
 import os
 import logging
 
+from raccoon.utils import constants as rc
 
 def main(args):
     """Run alignment QC using functions from raccoon.utils.
@@ -28,14 +29,14 @@ def main(args):
         if not io.validate_alignment_file(args.alignment):
             return 1
         
-        genbank = getattr(args, 'genbank', None)
+        genbank = getattr(args, rc.KEY_GENBANK, None)
         if genbank and not io.validate_genbank_file(genbank):
             return 1
         
-        reference = getattr(args, 'reference_id', None)
-        n_threshold = getattr(args, 'n_threshold', 0.2)
-        cluster_window = getattr(args, 'cluster_window', 10)
-        cluster_count = getattr(args, 'cluster_count', 3)
+        reference = getattr(args, rc.KEY_REFERENCE_ID, None)
+        n_threshold = getattr(args, rc.KEY_N_THRESHOLD, rc.DEFAULT_N_THRESHOLD)
+        cluster_window = getattr(args, rc.KEY_CLUSTER_WINDOW, rc.DEFAULT_CLUSTER_WINDOW)
+        cluster_count = getattr(args, rc.KEY_CLUSTER_COUNT, rc.DEFAULT_CLUSTER_COUNT)
 
         summary = af.run_alignment_qc(
             args.alignment,
@@ -45,6 +46,10 @@ def main(args):
             n_threshold=n_threshold,
             cluster_window=cluster_window,
             cluster_count=cluster_count,
+            mask_clustered=getattr(args, 'mask_clustered', True),
+            mask_n_adjacent=getattr(args, 'mask_n_adjacent', True),
+            mask_gap_adjacent=getattr(args, 'mask_gap_adjacent', True),
+            mask_frame_break=getattr(args, 'mask_frame_break', True),
         )
 
         logging.info("Alignment QC completed")
