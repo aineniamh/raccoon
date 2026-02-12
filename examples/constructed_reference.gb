@@ -1,0 +1,18 @@
+LOCUS       ref                     90 bp    DNA     linear   12-FEB-2026
+DEFINITION  Constructed reference for alignment QC example.
+ACCESSION   REF
+VERSION     REF.1
+KEYWORDS    .
+SOURCE      synthetic construct
+  ORGANISM  synthetic construct
+            other sequences; artificial sequences.
+FEATURES             Location/Qualifiers
+     source          1..90
+                     /organism="synthetic construct"
+                     /mol_type="genomic DNA"
+     CDS             1..15
+                     /note="Full-length CDS for frame-break test"
+ORIGIN
+        1 atgatgatga tgatgatgat gatgatgatg atgatgatga tgatgatgat
+       51 gatgatgatg atgatgatga tgatgatgat gatgatgatg
+//
