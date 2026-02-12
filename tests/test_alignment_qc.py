@@ -1,13 +1,13 @@
 import textwrap
-from Bio import AlignIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 import os
 
-from raccoon.utils import alignment_functions as af
-
-
+from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.SeqFeature import SeqFeature, FeatureLocation
+
+from raccoon.utils import alignment_functions as af
 
 
 def test_find_high_n_sequences(tmp_path):
@@ -23,28 +23,46 @@ def test_find_high_n_sequences(tmp_path):
     assert flagged[0][0] == 'seq2'
 
 
-def test_find_clustered_snps(tmp_path):
-    # create a small alignment where seq2 has 4 unique snps within a 10bp window
-    ref_seq = 'A' * 24
+def test_analyze_alignment_unique_snps_and_flags():
+    # alignment where s2 has three unique SNPs, one near N and one near a gap
+    ref_seq = 'AAAAAAAAAAAA'
     ref = SeqRecord(Seq(ref_seq), id='ref')
     s1 = SeqRecord(Seq(ref_seq), id='s1')
-
-    # build s2 by mutating a few positions but keeping length the same
-    s2_list = list(ref_seq)
-    for pos, nt in [(3, 'T'), (5, 'G'), (7, 'A'), (9, 'T')]:
-        s2_list[pos] = nt
-    s2 = SeqRecord(Seq(''.join(s2_list)), id='s2')
+    s2 = SeqRecord(Seq('AATAGNA-CAAA'), id='s2')
 
     aln = MultipleSeqAlignment([ref, s1, s2])
-    path = tmp_path / 'cluster.fasta'
-    AlignIO.write(aln, str(path), 'fasta')
-    aln2 = AlignIO.read(str(path), 'fasta')
+    unique_mutations, snps_near_n, snps_near_gap, clustered_snps = af.analyze_alignment(
+        aln, n_window=2, gap_window=1, snp_window=10, snp_count=3
+    )
 
-    sites = af.find_clustered_snps(aln2, window=10, min_snps=3)
-    # expect some sites flagged (the mutated positions)
-    assert len(sites) > 0
-    # ensure 's2' appears in at least one present_in
-    present = set()
-    for v in sites.values():
-        present.update(v['present_in'])
-    assert 's2' in present
+    assert unique_mutations['s2'] == {2, 4, 8}
+    assert snps_near_n['s2'] == {4}
+    assert snps_near_gap['s2'] == {8}
+    assert clustered_snps['s2'] == {2, 4, 8}
+
+
+def test_sliding_window():
+    assert list(af.sliding_window([1, 2, 3, 4], 2)) == [[1, 2], [2, 3], [3, 4]]
+    assert list(af.sliding_window([1, 2], 3)) == [[1, 2]]
+
+
+def test_find_frame_breaking_indels(tmp_path):
+    # reference sequence with a CDS covering the full length
+    ref_record = SeqRecord(Seq('ATGAAATTT'), id='ref', name='ref')
+    ref_record.annotations['molecule_type'] = 'DNA'
+    ref_record.features.append(SeqFeature(FeatureLocation(0, 9), type='CDS'))
+
+    genbank_path = tmp_path / 'ref.gb'
+    with open(genbank_path, 'w') as handle:
+        from Bio import SeqIO
+        SeqIO.write(ref_record, handle, 'genbank')
+
+    # alignment where seq2 has a single gap in the CDS region -> frame break
+    ref_aln = SeqRecord(Seq('ATGAAATTT'), id='ref')
+    seq2 = SeqRecord(Seq('ATG-AATTT'), id='seq2')
+    aln = MultipleSeqAlignment([ref_aln, seq2])
+
+    sites = af.find_frame_breaking_indels(aln, str(genbank_path), reference_id='ref')
+    assert sites, "Expected frame-breaking sites to be reported"
+    # ensure at least one site includes seq2 in present_in
+    assert any('seq2' in v['present_in'] for v in sites.values())
