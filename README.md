@@ -105,6 +105,27 @@ raccoon combine a.fasta b.fasta -o combined.fasta \
   --header-separator '|'
 ```
 
+Phylogenetic QC:
+
+```bash
+raccoon phylo --phylogeny <treefile> -d outdir \
+  --alignment <alignment.fasta> --asr-state <treefile>.state \
+  --run-adar --adar-window 300 --adar-min-count 3
+```
+
+Key phylo options:
+
+- `--phylogeny`: tree file (Newick or Nexus)
+- `--alignment`: alignment used for ASR state parsing
+- `--asr-state`: ASR state file (defaults to `<treefile>.state` if present)
+- `--tree-format`: auto/newick/nexus
+- `--run-adar`: enable ADAR-like edit flagging
+- `--run-apobec`: enable APOBEC3-like edit flagging
+- `--adar-window`: max distance (bp) for ADAR clustering (default: 300)
+- `--adar-min-count`: min ADAR sites in window to flag a branch (default: 3)
+- `--long-branch-sd`: std dev threshold for long-branch flagging (default: 3.0)
+```
+
 See full CLI details in [docs/cli.md](docs/cli.md).
 
 ## Mask notes
