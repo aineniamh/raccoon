@@ -6,7 +6,7 @@ import os
 import argparse
 import logging
 from raccoon import __version__, _program
-from raccoon.commands import alignment as alignment_cmd, phylo as phylo_cmd
+from raccoon.commands import alignment as alignment_cmd, phylo as phylo_cmd, combine as combine_cmd
 
 
 def build_parser():
@@ -41,6 +41,17 @@ def build_parser():
     p.add_argument('--run-apobec', action='store_true', dest='run_apobec', help='Run APOBEC3 phylo checks')
     p.add_argument('--run-adar', action='store_true', dest='run_adar', help='Run ADAR phylo checks')
     p.set_defaults(func=phylo_cmd.main)
+
+    c = sub.add_parser('combine', help='combine and harmonise FASTA files')
+    c.add_argument('inputs', nargs='+', help='Input FASTA files (one or more)')
+    c.add_argument('-o', '--output', default='combined.fasta', help='Output FASTA file (use - for stdout)')
+    c.add_argument('--metadata', nargs='+', action='extend', default=None, help='Metadata CSV(s) for harmonised headers')
+    c.add_argument('--metadata-delimiter', default=',', help='Metadata delimiter (default: ,)')
+    c.add_argument('--metadata-id-field', default='id', help='Metadata id column (default: id)')
+    c.add_argument('--metadata-location-field', default='location', help='Metadata location column (default: location)')
+    c.add_argument('--metadata-date-field', default='date', help='Metadata date column (default: date)')
+    c.add_argument('--header-separator', default='|', help='Header separator (default: |)')
+    c.set_defaults(func=combine_cmd.main)
 
     return parser
 
