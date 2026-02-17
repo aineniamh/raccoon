@@ -26,30 +26,52 @@ def main(args):
             return 1
         
         # validate input files
-        if not io.validate_alignment_file(args.assembly_refs):
+        assembly_refs = getattr(args, 'assembly_refs', None)
+        if assembly_refs and not io.validate_alignment_file(assembly_refs):
             return 1
-        
-        phylogeny_file = getattr(args, 'phylogeny', None)
-        if phylogeny_file and not io.validate_input_file(phylogeny_file, "Phylogeny file"):
+
+        treefile = io.resolve_existing_file(getattr(args, 'phylogeny', None), outdir, "Phylogeny file")
+        if not treefile:
             return 1
         
         mask_file = getattr(args, 'mask_file', None)
         if mask_file and not io.validate_input_file(mask_file, "Mask file"):
             return 1
+
+        alignment = getattr(args, 'alignment', None)
+        if alignment and not io.validate_alignment_file(alignment):
+            return 1
+
+        state_file = io.resolve_asr_state_file(getattr(args, 'asr_state', None), treefile)
+        if getattr(args, 'asr_state', None) and not state_file:
+            return 1
         
         config = {}
         config[KEY_OUTDIR] = outdir
-        config[KEY_OUTFILENAME] = args.phylogeny
-        config[KEY_PHYLOGENY] = args.phylogeny
+        phylogeny_base = os.path.splitext(os.path.basename(treefile))[0]
+        config[KEY_OUTFILENAME] = phylogeny_base
+        config[KEY_PHYLOGENY] = phylogeny_base
         config[KEY_RUN_APOBEC3_PHYLO] = args.run_apobec
 
         outgroup_ids = []
         if args.outgroup_ids:
             outgroup_ids = [x.strip() for x in args.outgroup_ids.split(',') if x.strip()]
 
-        mask_file = mask_file or os.path.join(outdir, f"{args.phylogeny}.mask.csv")
+        mask_file = mask_file or os.path.join(outdir, f"{phylogeny_base}.mask.csv")
 
-        pf.check_for_snp_anomalies(args.assembly_refs, outgroup_ids, mask_file, config, args.height)
+        pf.run_phylo_qc(
+            treefile=treefile,
+            tree_format=args.tree_format,
+            outdir=outdir,
+            alignment=alignment,
+            state_file=state_file,
+            assembly_refs=assembly_refs,
+            long_branch_sd=args.long_branch_sd,
+            include_apobec=args.run_apobec,
+            include_adar=args.run_adar,
+            adar_window=args.adar_window,
+            adar_min_count=args.adar_min_count,
+        )
         logging.info("Phylogenetic QC finished")
         return 0
     except Exception:
