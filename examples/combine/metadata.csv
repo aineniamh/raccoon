@@ -1,0 +1,12 @@
+id,location,date,host
+A001,SiteA,2024-01-15,human
+A002,SiteA,2024-01-20,human
+A003,SiteC,2024-02-01,human
+A004,SiteC,2024-02-15,animal
+B001,LocX,2023-11-05,human
+B002,LocX,2023-12-12,animal
+B003,LocZ,2024-03-03,human
+B004,LocZ,2024-03-10,animal
+C001,Town1,2022-08-01,human
+C002,Town1,2022-09-14,animal
+C003,Town3,2022-10-30,human
