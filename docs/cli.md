@@ -96,6 +96,11 @@ Key options
 - `--mask-file`: optional mask CSV file with sites to ignore
 - `--height`: plotting height parameter (optional)
 - `--run-apobec`: flag to run APOBEC3-specific analyses
+- `--run-adar`: flag to run ADAR-specific analyses
+- `--alignment`: alignment FASTA used with ASR state file
+- `--asr-state`: ancestral state reconstruction file (defaults to <tree>.state if present)
+- `--tree-format`: tree format (auto/newick/nexus)
+- `--long-branch-sd`: std dev threshold for long-branch flagging
 
 Behavior and exit codes
 
