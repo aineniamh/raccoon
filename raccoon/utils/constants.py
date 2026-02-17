@@ -63,6 +63,10 @@ KEY_REFERENCE_ID = "reference_id"
 KEY_N_THRESHOLD = "n_threshold"
 KEY_CLUSTER_WINDOW = "cluster_window"
 KEY_CLUSTER_COUNT = "cluster_count"
+KEY_MASK_CLUSTERED = "mask_clustered"
+KEY_MASK_N_ADJACENT = "mask_n_adjacent"
+KEY_MASK_GAP_ADJACENT = "mask_gap_adjacent"
+KEY_MASK_FRAME_BREAK = "mask_frame_break"
 
 DEFAULT_N_THRESHOLD = 0.2
 DEFAULT_CLUSTER_WINDOW = 10
