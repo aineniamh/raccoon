@@ -2,4 +2,4 @@
 
 # Keep this module minimal to avoid heavy imports at import-time
 
-__all__ = ["alignment", "phylo", "combine"]
+__all__ = [ "combine","alignment", "phylo"]
