@@ -255,13 +255,64 @@ def get_acc_to_metadata_map(metadata):
 
 
 def get_fig_height(alignment):
-    seqs = SeqIO.index(alignment,"fasta")
+    seqs = SeqIO.index(alignment, "fasta")
+    n_tips = len(seqs)
+    max_label_len = 0
+    for rec_id in seqs:
+        if len(rec_id) > max_label_len:
+            max_label_len = len(rec_id)
 
-    height = 0.5*len(seqs)
-    if height >15:
-        return height
+    # heuristic to keep labels legible without excessive height
+    height = (n_tips * 0.25) + (max_label_len * 0.02)
+    if height < 8:
+        return 8
+    if height > 60:
+        return 60
+    return height
+
+
+def get_fig_size(treefile, tree_format="auto", alignment=None):
+    """Estimate figure (width, height) for tree rendering.
+
+    Width scales with genetic distance and label length; height scales with tip count.
+    """
+    my_tree = load_tree(treefile, tree_format=tree_format)
+
+    tips = []
+    for node in my_tree.Objects:
+        if node.branchType == 'leaf':
+            label = ensure_node_label(node)
+            if label:
+                tips.append(label)
+
+    n_tips = len(tips)
+    max_label_len = max([len(t) for t in tips], default=0)
+
+    if alignment:
+        try:
+            seqs = SeqIO.index(alignment, "fasta")
+            n_tips = max(n_tips, len(seqs))
+            max_label_len = max(max_label_len, max((len(rec_id) for rec_id in seqs), default=0))
+        except Exception:
+            pass
+
+    # height: driven by number of tips (vertical spacing)
+    height = (n_tips * 0.25) + (max_label_len * 0.01)
+    height = min(max(height, 8), 60)
+
+    # width: driven by genetic distance (tree height) + label space
+    tree_height = getattr(my_tree, "treeHeight", None)
+    if tree_height is None:
+        width = 25
     else:
-        return 15
+        r2t = 200000 * tree_height
+        width = (math.sqrt(r2t) * 3) if r2t < 200 else 25
+
+    label_space = (max_label_len * 0.12) + 2
+    width = max(width, label_space + (height * 0.1))
+    width = min(max(width, 10), 80)
+
+    return width, height
 
 
 def make_reconstruction_tree_figure_w_labels(outfile,branch_snps,treefile,point_style,justification,w=None,h=None):
