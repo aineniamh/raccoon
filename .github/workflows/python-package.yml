@@ -28,10 +28,10 @@ jobs:
       - name: End-to-end CLI checks
         run: |
           raccoon --version
-          raccoon combine examples/combine_a.fasta examples/combine_b.fasta -o /tmp/combined.fasta
+          raccoon seq-qc examples/combine/inputs/set_a.fasta examples/combine/inputs/set_b.fasta -o /tmp/combined.fasta
           test -s /tmp/combined.fasta
-          raccoon phylo --phylogeny examples/bulape_outbreak/bulape_mini.pruned.tree \
-            --asr-state examples/bulape_outbreak/bulape_mini.state \
-            --alignment examples/bulape_outbreak/bulape_mini.aln.fasta \
+          raccoon tree-qc --phylogeny examples/mini_tree/mini.pruned.tree \
+            --asr-state examples/mini_tree/mini.state \
+            --alignment examples/mini_tree/mini.aln.fasta \
             --run-adar
-          test -s bulape_mini.pruned.phylo_flags.csv
+          test -s mini.pruned.phylo_flags.csv

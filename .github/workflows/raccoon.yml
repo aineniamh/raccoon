@@ -26,17 +26,17 @@ jobs:
         run: pip3 install --break-system-packages -e .
       - name: Check raccoon version
         run: raccoon --version
-      - name: Run raccoon combine with test data
-        run: raccoon combine examples/combine_a.fasta examples/combine_b.fasta -o /tmp/combined.fasta
-      - name: Run raccoon align with test data
-        run: raccoon alignment examples/constructed_alignment.fasta -d /tmp/aln_out \
+      - name: Run raccoon seq-qc with test data
+        run: raccoon seq-qc examples/combine/inputs/set_a.fasta examples/combine/inputs/set_b.fasta -o /tmp/combined.fasta
+      - name: Run raccoon aln-qc with test data
+        run: raccoon aln-qc examples/constructed_alignment.fasta -d /tmp/aln_out \
             --genbank examples/constructed_reference.gb --reference-id ref \
             --no-mask-n-adjacent --no-mask-gap-adjacent
-      - name: Run raccoon align with masking
-        run: raccoon alignment examples/constructed_alignment.fasta -d /tmp/aln_out \
+      - name: Run raccoon aln-qc with masking
+        run: raccoon aln-qc examples/constructed_alignment.fasta -d /tmp/aln_out \
              --reference-id ref 
-      - name: Run raccoon phylo
-        run: raccoon phylo examples/mini_tree.tree --asr-state examples/mini_state.state --alignment examples/mini_alignment.fasta \
+      - name: Run raccoon tree-qc
+        run: raccoon tree-qc --phylogeny examples/mini_tree/mini.pruned.tree --asr-state examples/mini_tree/mini.state --alignment examples/mini_tree/mini.aln.fasta \
             -d /tmp/phylo_out --run-adar --adar-window 300 --adar-min-count 3
 
 
