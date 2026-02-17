@@ -59,7 +59,7 @@ def main(args):
 
         mask_file = mask_file or os.path.join(outdir, f"{phylogeny_base}.mask.csv")
 
-        pf.run_phylo_qc(
+        flags_csv = pf.run_phylo_qc(
             treefile=treefile,
             tree_format=args.tree_format,
             outdir=outdir,
@@ -72,6 +72,16 @@ def main(args):
             adar_window=args.adar_window,
             adar_min_count=args.adar_min_count,
         )
+        try:
+            from raccoon.utils import reporting
+            reporting.generate_phylo_report(
+                outdir=outdir,
+                treefile=treefile,
+                flags_csv=flags_csv,
+                tree_format=args.tree_format,
+            )
+        except Exception:
+            logging.exception("Failed to generate phylo report")
         logging.info("Phylogenetic QC finished")
         return 0
     except Exception:
