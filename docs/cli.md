@@ -144,3 +144,5 @@ Key options
 - `--metadata-location-field`: metadata location column (default: `location`)
 - `--metadata-date-field`: metadata date column (default: `date`)
 - `--header-separator`: header separator (default: `|`)
+- `--min-length`: minimum sequence length to keep
+- `--max-n-content`: maximum N content proportion to keep (e.g. `0.1`)

@@ -2,6 +2,7 @@
 """Combine FASTA files and optionally harmonise headers from metadata."""
 import csv
 import logging
+import os
 import sys
 from typing import Dict, Iterable, Optional
 
@@ -51,6 +52,13 @@ def write_fasta_record(handle, header: str, sequence: str) -> None:
     handle.write(f">{header}\n{sequence}\n")
 
 
+def n_content(seq: str) -> float:
+    seq = seq.upper()
+    if not seq:
+        return 0.0
+    return seq.count("N") / len(seq)
+
+
 def main(args):
     """Combine fasta files into a single upper-case, unwrapped FASTA."""
     if not hasattr(args, "inputs"):
@@ -84,9 +92,20 @@ def main(args):
             out_handle = open(output_path, "w")
             close_handle = True
 
+        filtered_count = 0
+        kept_count = 0
         try:
             for path in inputs:
                 for rec in SeqIO.parse(path, "fasta"):
+                    seq = str(rec.seq)
+                    seq_len = len(seq)
+                    n_prop = n_content(seq)
+                    if args.min_length is not None and seq_len < args.min_length:
+                        filtered_count += 1
+                        continue
+                    if args.max_n_content is not None and n_prop > args.max_n_content:
+                        filtered_count += 1
+                        continue
                     header = rec.id
                     if metadata_map is not None:
                         row = metadata_map.get(rec.id)
@@ -100,12 +119,33 @@ def main(args):
                             )
                         else:
                             logging.warning("No metadata row found for %s", rec.id)
-                    write_fasta_record(out_handle, header, str(rec.seq))
+                    write_fasta_record(out_handle, header, seq)
+                    kept_count += 1
         finally:
             if close_handle:
                 out_handle.close()
 
+        try:
+            from raccoon.utils import reporting
+            report_outdir = os.path.dirname(output_path) or os.getcwd()
+            reporting.generate_combine_report(
+                outdir=report_outdir,
+                output_fasta=output_path if output_path != "-" else "",
+                input_fastas=inputs,
+                metadata_paths=args.metadata or None,
+                metadata_id_field=args.metadata_id_field,
+                metadata_location_field=args.metadata_location_field,
+                metadata_date_field=args.metadata_date_field,
+                header_separator=args.header_separator,
+                min_length=args.min_length,
+                max_n_content=args.max_n_content,
+            )
+        except Exception:
+            logging.exception("Failed to generate combine report")
+
         logging.info("Combined %d input FASTA files", len(inputs))
+        if args.min_length is not None or args.max_n_content is not None:
+            logging.info("Filtered %d sequences; kept %d", filtered_count, kept_count)
         return 0
     except Exception:
         logging.exception("Combine failed")

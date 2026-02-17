@@ -25,6 +25,8 @@ def build_parser():
     c.add_argument('--metadata-location-field', default='location', help='Metadata location column (default: location)')
     c.add_argument('--metadata-date-field', default='date', help='Metadata date column (default: date)')
     c.add_argument('--header-separator', default='|', help='Header separator (default: |)')
+    c.add_argument('--min-length', type=int, default=None, help='Minimum sequence length to keep')
+    c.add_argument('--max-n-content', type=float, default=None, help='Maximum N content proportion to keep (e.g. 0.1)')
     c.set_defaults(func=combine_cmd.main)
 
     a = sub.add_parser('alignment', help='alignment QC')
@@ -48,7 +50,6 @@ def build_parser():
     p.add_argument('--outdir','-d', help='Output directory', dest='outdir', default='.')
     p.add_argument('--mask-file', help='Mask output file', dest='mask_file', default=None)
     p.add_argument('--outgroup-ids', help='Comma-separated outgroup ids', dest='outgroup_ids', default=None)
-    p.add_argument('--height', help='Figure height', dest='height', default=None)
     p.add_argument('--alignment', help='Alignment fasta used with ASR state file', dest='alignment', default=None)
     p.add_argument('--asr-state', help='Ancestral state reconstruction file in the format output by IQTREE', dest='asr_state', default=None)
     p.add_argument('--tree-format', choices=['auto','newick','nexus'], default='auto', dest='tree_format', help='Tree format (default: auto)')
@@ -57,6 +58,7 @@ def build_parser():
     p.add_argument('--adar-min-count', type=int, default=3, dest='adar_min_count', help='Min ADAR sites in window to flag a branch (default: 3)')
     p.add_argument('--run-apobec', action='store_true', dest='run_apobec', help='Run APOBEC3 phylo checks')
     p.add_argument('--run-adar', action='store_true', dest='run_adar', help='Run ADAR phylo checks')
+    p.add_argument('--height', help='Figure height', dest='height', default=None)
     p.set_defaults(func=phylo_cmd.main)
 
     return parser
