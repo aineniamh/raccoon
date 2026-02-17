@@ -69,6 +69,17 @@ def main(args):
             fw.write(f"mask_file: {summary['mask_file']}\n")
 
         logging.info(f"Summary written to {summary_file}")
+
+        try:
+            from raccoon.utils import reporting
+            reporting.generate_alignment_report(
+                outdir=outdir,
+                alignment_path=args.alignment,
+                mask_file=summary.get(rc.KEY_MASK_FILE),
+            )
+        except Exception:
+            logging.exception("Failed to generate alignment report")
+
         return 0
     except FileNotFoundError as exc:
         logging.error(str(exc))

@@ -20,7 +20,8 @@ dependencies = [
     "scipy",
     "matplotlib>=3.3.1",
     'baltic',
-    'seaborn'
+    'seaborn',
+    'plotly>=5.0.0'
 ]
 
 [project.urls]
