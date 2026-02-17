@@ -7,24 +7,24 @@ def test_subcommands_present():
     parser = build_parser()
     # access to subparser choices (stable across argparse implementations)
     subparsers = parser._subparsers._group_actions[0].choices
-    assert 'alignment' in subparsers
-    assert 'phylo' in subparsers
-    assert 'combine' in subparsers
+    assert 'aln-qc' in subparsers
+    assert 'tree-qc' in subparsers
+    assert 'seq-qc' in subparsers
 
 
 def test_alignment_sets_func_callable():
     parser = build_parser()
-    ns = parser.parse_args(['alignment', 'input.fasta'])
+    ns = parser.parse_args(['aln-qc', 'input.fasta'])
     assert callable(ns.func)
 
 
 def test_phylo_sets_func_callable():
     parser = build_parser()
-    ns = parser.parse_args(['phylo', '--phylogeny', 'tree'])
+    ns = parser.parse_args(['tree-qc', '--phylogeny', 'tree'])
     assert callable(ns.func)
 
 
 def test_combine_sets_func_callable():
     parser = build_parser()
-    ns = parser.parse_args(['combine', 'a.fasta'])
+    ns = parser.parse_args(['seq-qc', 'a.fasta'])
     assert callable(ns.func)

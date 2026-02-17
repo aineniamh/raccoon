@@ -43,7 +43,7 @@ pip install -e .
 ## Quickstart
 
 ```bash
-raccoon alignment examples/constructed_alignment.fasta -d outdir \
+raccoon aln-qc examples/constructed_alignment.fasta -d outdir \
 	--genbank examples/constructed_reference.gb --reference-id ref
 ```
 
@@ -63,20 +63,20 @@ raccoon --help
 Alignment QC:
 
 ```bash
-raccoon alignment <alignment.fasta> -d outdir
+raccoon aln-qc <alignment.fasta> -d outdir
 ```
 
 With a GenBank reference for frame‑break detection:
 
 ```bash
-raccoon alignment <alignment.fasta> -d outdir \
+raccoon aln-qc <alignment.fasta> -d outdir \
   --genbank <reference.gb> --reference-id <ref_id>
 ```
 
 Masking toggles (defaults are enabled):
 
 ```bash
-raccoon alignment <alignment.fasta> -d outdir \
+raccoon aln-qc <alignment.fasta> -d outdir \
   --no-mask-n-adjacent --no-mask-gap-adjacent
 ```
 
@@ -90,16 +90,16 @@ Key alignment options:
 - `--mask-gap-adjacent/--no-mask-gap-adjacent`: include/exclude SNPs adjacent to gaps.
 - `--mask-frame-break/--no-mask-frame-break`: include/exclude frame-breaking indels.
 
-Combine FASTA files:
+Sequence QC:
 
 ```bash
-raccoon combine a.fasta b.fasta -o combined.fasta
+raccoon seq-qc a.fasta b.fasta -o combined.fasta
 ```
 
 With metadata-driven headers:
 
 ```bash
-raccoon combine a.fasta b.fasta -o combined.fasta \
+raccoon seq-qc a.fasta b.fasta -o combined.fasta \
   --metadata metadata.csv other_metadata.csv --metadata-id-field id \
   --metadata-location-field location --metadata-date-field date \
   --header-separator '|'
@@ -108,7 +108,7 @@ raccoon combine a.fasta b.fasta -o combined.fasta \
 Phylogenetic QC:
 
 ```bash
-raccoon phylo --phylogeny <treefile> -d outdir \
+raccoon tree-qc --phylogeny <treefile> -d outdir \
   --alignment <alignment.fasta> --asr-state <treefile>.state \
   --run-adar --adar-window 300 --adar-min-count 3
 ```

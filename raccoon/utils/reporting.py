@@ -422,7 +422,7 @@ def generate_combine_report(
         except Exception:
             final_rows = []
 
-    cmd_parts = ["raccoon", "combine"]
+    cmd_parts = ["raccoon", "seq-qc"]
     cmd_parts.extend([os.path.basename(p) for p in input_fastas])
     if output_fasta:
         cmd_parts.extend(["--output", os.path.basename(output_fasta)])
@@ -543,7 +543,7 @@ def generate_combine_report(
     plots_html = []
 
     outpath = os.path.join(outdir, "combine_report.html")
-    _write_html(outpath, "Raccoon combine report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon seq-qc report", summary_html, plots_html)
     return outpath
 
 
@@ -608,7 +608,7 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
             plots_html.append(_plot_div(fig))
 
     outpath = os.path.join(outdir, "alignment_report.html")
-    _write_html(outpath, "Raccoon alignment report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon aln-qc report", summary_html, plots_html)
     return outpath
 
 
@@ -652,5 +652,5 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
             plots_html.append(_plot_div(fig))
 
     outpath = os.path.join(outdir, "phylo_report.html")
-    _write_html(outpath, "Raccoon phylo report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon tree-qc report", summary_html, plots_html)
     return outpath

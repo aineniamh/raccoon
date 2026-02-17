@@ -16,7 +16,7 @@ def build_parser():
     sub = parser.add_subparsers(dest='command')
     sub.required = True
 
-    c = sub.add_parser('combine', help='combine and harmonise FASTA files')
+    c = sub.add_parser('seq-qc', help='sequence QC (combine and harmonise FASTA files)')
     c.add_argument('inputs', nargs='+', help='Input FASTA files (one or more)')
     c.add_argument('-o', '--output', default='combined.fasta', help='Output FASTA file (use - for stdout)')
     c.add_argument('--metadata', nargs='+', action='extend', default=None, help='Metadata CSV(s) for harmonised headers')
@@ -29,7 +29,7 @@ def build_parser():
     c.add_argument('--max-n-content', type=float, default=None, help='Maximum N content proportion to keep (e.g. 0.1)')
     c.set_defaults(func=combine_cmd.main)
 
-    a = sub.add_parser('alignment', help='alignment QC')
+    a = sub.add_parser('aln-qc', help='alignment QC')
     a.add_argument('alignment', help='Input alignment fasta file')
     a.add_argument('-t','--sequence-type', choices=['nt','aa'], default='nt', dest='sequence_type', help='Sequence type (default: nt)')
     a.add_argument('-d','--output-dir', default='.', dest='output_dir', help='Output directory')
@@ -44,7 +44,7 @@ def build_parser():
     a.add_argument('--mask-frame-break', default=True, action=argparse.BooleanOptionalAction, dest='mask_frame_break', help='Mask frame-breaking indels (default: True)')
     a.set_defaults(func=alignment_cmd.main)
 
-    p = sub.add_parser('phylo', help='phylogenetic QC')
+    p = sub.add_parser('tree-qc', help='phylogenetic QC')
     p.add_argument('--assembly-refs', help='Assembly references fasta', dest='assembly_refs', default=None)
     p.add_argument('--phylogeny', help='Phylogeny tree file or base name', dest='phylogeny', required=True)
     p.add_argument('--outdir','-d', help='Output directory', dest='outdir', default='.')

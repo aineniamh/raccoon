@@ -6,17 +6,17 @@ Examples:
 
 - Alignment QC
   ```bash
-  raccoon alignment input_alignment.fasta -d outdir --flag-n
+  raccoon aln-qc input_alignment.fasta -d outdir --flag-n
   ```
 
 - Phylogenetic QC
   ```bash
-  raccoon phylo --phylogeny mytree --assembly-refs refs.fasta -d outdir --run-apobec
+  raccoon tree-qc --phylogeny mytree --assembly-refs refs.fasta -d outdir --run-apobec
   ```
 
-- Combine FASTA files
+- Sequence QC
   ```bash
-  raccoon combine a.fasta b.fasta -o combined.fasta
+  raccoon seq-qc a.fasta b.fasta -o combined.fasta
   ```
 
 Each subcommand has its own help available with `raccoon <subcommand> --help`.
@@ -33,14 +33,14 @@ raccoon <subcommand> [options]
 
 Run `raccoon <subcommand> --help` to see subcommand-specific options.
 
-Alignment subcommand
+aln-qc subcommand
 
 Purpose: run alignment quality-control checks and produce a mask file and summary.
 
 Basic usage:
 
 ```bash
-raccoon alignment <alignment.fasta> -d outdir
+raccoon aln-qc <alignment.fasta> -d outdir
 ```
 
 Key options
@@ -66,25 +66,25 @@ Behavior and exit codes
 Example
 
 ```bash
-raccoon alignment data/sequences.fasta -d results/alignment_qc --genbank refs/ref.gb --reference-id NC_000000
+raccoon aln-qc data/sequences.fasta -d results/alignment_qc --genbank refs/ref.gb --reference-id NC_000000
 ```
 
 Example with masking toggles
 
 ```bash
-raccoon alignment data/sequences.fasta -d results/alignment_qc \
+raccoon aln-qc data/sequences.fasta -d results/alignment_qc \
   --genbank refs/ref.gb --reference-id NC_000000 \
   --no-mask-n-adjacent --no-mask-gap-adjacent
 ```
 
-Phylogenetic subcommand
+tree-qc subcommand
 
 Purpose: run phylogenetic QC (SNP anomaly checks, apobec analyses, plotting helpers).
 
 Basic usage:
 
 ```bash
-raccoon phylo --phylogeny treefile.newick --assembly-refs refs.fasta -d outdir
+raccoon tree-qc --phylogeny treefile.newick --assembly-refs refs.fasta -d outdir
 ```
 
 Key options
@@ -110,23 +110,23 @@ Behavior and exit codes
 Example
 
 ```bash
-raccoon phylo --phylogeny trees/rep.tree --assembly-refs data/refs.fasta -d results/phylo --run-apobec
+raccoon tree-qc --phylogeny trees/rep.tree --assembly-refs data/refs.fasta -d results/phylo --run-apobec
 ```
 
-Combine subcommand
+seq-qc subcommand
 
 Purpose: combine one or more FASTA files into a single upper-case, unwrapped FASTA, with optional metadata-driven header harmonisation.
 
 Basic usage:
 
 ```bash
-raccoon combine a.fasta b.fasta -o combined.fasta
+raccoon seq-qc a.fasta b.fasta -o combined.fasta
 ```
 
 Header harmonisation using metadata:
 
 ```bash
-raccoon combine a.fasta b.fasta -o combined.fasta \
+raccoon seq-qc a.fasta b.fasta -o combined.fasta \
   --metadata metadata.csv \
   --metadata-id-field id \
   --metadata-location-field location \
