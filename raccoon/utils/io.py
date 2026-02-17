@@ -132,3 +132,41 @@ def cleanup_temp_file(temp_path: Optional[str]) -> None:
             os.unlink(temp_path)
     except Exception:
         logging.debug("Failed to remove temp file %s", temp_path)
+
+
+def resolve_existing_file(filepath: str, outdir: Optional[str], name: str) -> Optional[str]:
+    """Resolve a file path directly or relative to outdir.
+
+    Returns the resolved path if readable, otherwise None.
+    """
+    if not filepath:
+        logging.error("%s is required", name)
+        return None
+
+    if validate_input_file(filepath, name):
+        return filepath
+
+    if outdir:
+        candidate = os.path.join(outdir, filepath)
+        if validate_input_file(candidate, name):
+            return candidate
+
+    return None
+
+
+def resolve_asr_state_file(state_file: Optional[str], treefile: Optional[str]) -> Optional[str]:
+    """Resolve ASR state file path (explicit or based on treefile)."""
+    if state_file:
+        if validate_input_file(state_file, "ASR state file"):
+            return state_file
+        return None
+
+    if not treefile:
+        return None
+
+    candidates = [f"{treefile}.state", f"{os.path.splitext(treefile)[0]}.state"]
+    for candidate in candidates:
+        if os.path.isfile(candidate) and validate_input_file(candidate, "ASR state file"):
+            return candidate
+
+    return None
