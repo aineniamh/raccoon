@@ -16,6 +16,17 @@ def build_parser():
     sub = parser.add_subparsers(dest='command')
     sub.required = True
 
+    c = sub.add_parser('combine', help='combine and harmonise FASTA files')
+    c.add_argument('inputs', nargs='+', help='Input FASTA files (one or more)')
+    c.add_argument('-o', '--output', default='combined.fasta', help='Output FASTA file (use - for stdout)')
+    c.add_argument('--metadata', nargs='+', action='extend', default=None, help='Metadata CSV(s) for harmonised headers')
+    c.add_argument('--metadata-delimiter', default=',', help='Metadata delimiter (default: ,)')
+    c.add_argument('--metadata-id-field', default='id', help='Metadata id column (default: id)')
+    c.add_argument('--metadata-location-field', default='location', help='Metadata location column (default: location)')
+    c.add_argument('--metadata-date-field', default='date', help='Metadata date column (default: date)')
+    c.add_argument('--header-separator', default='|', help='Header separator (default: |)')
+    c.set_defaults(func=combine_cmd.main)
+
     a = sub.add_parser('alignment', help='alignment QC')
     a.add_argument('alignment', help='Input alignment fasta file')
     a.add_argument('-t','--sequence-type', choices=['nt','aa'], default='nt', dest='sequence_type', help='Sequence type (default: nt)')
@@ -47,17 +58,6 @@ def build_parser():
     p.add_argument('--run-apobec', action='store_true', dest='run_apobec', help='Run APOBEC3 phylo checks')
     p.add_argument('--run-adar', action='store_true', dest='run_adar', help='Run ADAR phylo checks')
     p.set_defaults(func=phylo_cmd.main)
-
-    c = sub.add_parser('combine', help='combine and harmonise FASTA files')
-    c.add_argument('inputs', nargs='+', help='Input FASTA files (one or more)')
-    c.add_argument('-o', '--output', default='combined.fasta', help='Output FASTA file (use - for stdout)')
-    c.add_argument('--metadata', nargs='+', action='extend', default=None, help='Metadata CSV(s) for harmonised headers')
-    c.add_argument('--metadata-delimiter', default=',', help='Metadata delimiter (default: ,)')
-    c.add_argument('--metadata-id-field', default='id', help='Metadata id column (default: id)')
-    c.add_argument('--metadata-location-field', default='location', help='Metadata location column (default: location)')
-    c.add_argument('--metadata-date-field', default='date', help='Metadata date column (default: date)')
-    c.add_argument('--header-separator', default='|', help='Header separator (default: |)')
-    c.set_defaults(func=combine_cmd.main)
 
     return parser
 
