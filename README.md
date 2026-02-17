@@ -90,6 +90,21 @@ Key alignment options:
 - `--mask-gap-adjacent/--no-mask-gap-adjacent`: include/exclude SNPs adjacent to gaps.
 - `--mask-frame-break/--no-mask-frame-break`: include/exclude frame-breaking indels.
 
+Combine FASTA files:
+
+```bash
+raccoon combine a.fasta b.fasta -o combined.fasta
+```
+
+With metadata-driven headers:
+
+```bash
+raccoon combine a.fasta b.fasta -o combined.fasta \
+  --metadata metadata.csv other_metadata.csv --metadata-id-field id \
+  --metadata-location-field location --metadata-date-field date \
+  --header-separator '|'
+```
+
 See full CLI details in [docs/cli.md](docs/cli.md).
 
 ## Mask notes

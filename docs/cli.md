@@ -14,6 +14,11 @@ Examples:
   raccoon phylo --phylogeny mytree --assembly-refs refs.fasta -d outdir --run-apobec
   ```
 
+- Combine FASTA files
+  ```bash
+  raccoon combine a.fasta b.fasta -o combined.fasta
+  ```
+
 Each subcommand has its own help available with `raccoon <subcommand> --help`.
 
 # raccoon CLI
@@ -102,3 +107,35 @@ Example
 ```bash
 raccoon phylo --phylogeny trees/rep.tree --assembly-refs data/refs.fasta -d results/phylo --run-apobec
 ```
+
+Combine subcommand
+
+Purpose: combine one or more FASTA files into a single upper-case, unwrapped FASTA, with optional metadata-driven header harmonisation.
+
+Basic usage:
+
+```bash
+raccoon combine a.fasta b.fasta -o combined.fasta
+```
+
+Header harmonisation using metadata:
+
+```bash
+raccoon combine a.fasta b.fasta -o combined.fasta \
+  --metadata metadata.csv \
+  --metadata-id-field id \
+  --metadata-location-field location \
+  --metadata-date-field date \
+  --header-separator '|'
+```
+
+Key options
+
+- `inputs` (positional): one or more input FASTA files
+- `-o, --output`: output FASTA file (use `-` for stdout)
+- `--metadata`: one or more metadata CSVs used to harmonise headers
+- `--metadata-delimiter`: metadata delimiter (default: `,`)
+- `--metadata-id-field`: metadata id column (default: `id`)
+- `--metadata-location-field`: metadata location column (default: `location`)
+- `--metadata-date-field`: metadata date column (default: `date`)
+- `--header-separator`: header separator (default: `|`)
