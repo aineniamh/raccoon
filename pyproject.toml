@@ -36,7 +36,7 @@ packages = ["raccoon", "raccoon.commands", "raccoon.utils"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-raccoon = ["templates/**/*.html"]
+raccoon = ["templates/**/*.html", "assets/*.svg"]
 
 [tool.setuptools.dynamic]
 version = {attr = "raccoon.__version__"}

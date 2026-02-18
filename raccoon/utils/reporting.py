@@ -49,8 +49,8 @@ def _render_html(template_name: str, context: Dict[str, Any]) -> str:
 
 def _write_html(outfile: str, title: str, template_name: str, context: Dict[str, Any]) -> None:
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    raccoon_logo = _svg_data_uri(os.path.join(base_dir, "docs", "raccoon_logo.svg"))
-    artic_logo = _svg_data_uri(os.path.join(base_dir, "docs", "artic-logo-small.svg"))
+    raccoon_logo = _svg_data_uri(os.path.join(base_dir, "raccoon", "assets", "raccoon_logo.svg"))
+    artic_logo = _svg_data_uri(os.path.join(base_dir, "raccoon", "assets", "artic-logo-small.svg"))
     raccoon_logo_html = _logo_html(raccoon_logo, "logo", "Raccoon logo")
     artic_logo_html = _logo_html(artic_logo, "logo-small", "ARTIC Network logo")
     base_context = {
@@ -484,18 +484,31 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
         except Exception:
             site_to_ids = {}
     sites_table: Optional[Dict[str, Any]] = None
+    sequence_removals_table: Optional[Dict[str, Any]] = None
     if mask_file and os.path.exists(mask_file):
         site_rows = []
+        sequence_rows = []
         with open(mask_file, "r") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
                 row_type = (row.get("type") or "site").strip().lower()
                 if row_type == "site":
                     site_rows.append(row)
+                elif row_type == "sequence_record":
+                    flagged = row.get("flagged", "")
+                    note = row.get("note", "")
+                    sites = [s for s in note.split(",") if s.strip()]
+                    sequence_rows.append({
+                        "sequence": flagged,
+                        "problematic_sites": len(sites),
+                        "sites": note,
+                    })
         if site_rows:
             headers = list(site_rows[0].keys())
             rows = [[row.get(h, "") for h in headers] for row in site_rows]
             sites_table = {"headers": headers, "rows": rows}
+        if sequence_rows:
+            sequence_removals_table = _table_context(pd.DataFrame(sequence_rows))
     n_blocks_plot_html = ""
     if seq_strings and aln_len:
         z = []
@@ -631,6 +644,7 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
         "n_blocks_plot_html": n_blocks_plot_html,
         "has_n_blocks_plot": bool(n_blocks_plot_html),
         "sites_table": sites_table,
+        "sequence_removals_table": sequence_removals_table,
         "flagged_plot_html": flagged_plot_html,
         "diversity_plot_html": diversity_plot_html,
         "datafiles": {
