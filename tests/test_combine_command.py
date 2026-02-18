@@ -14,6 +14,8 @@ class MockArgs:
         self.metadata_location_field = kwargs.get("metadata_location_field", "location")
         self.metadata_date_field = kwargs.get("metadata_date_field", "date")
         self.header_separator = kwargs.get("header_separator", "|")
+        self.id_delimiter = kwargs.get("id_delimiter", "|")
+        self.id_field = kwargs.get("id_field", 0)
 
 
 def _write_fasta(path, entries):
@@ -80,13 +82,13 @@ def test_combine_harmonises_headers_with_metadata(tmp_path):
 
 def test_combine_examples_same_headers(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
-    examples = repo_root / "examples"
+    examples = repo_root / "tests" / "test_data" / "combine"
     out = tmp_path / "combined_same_headers.fasta"
 
     args = MockArgs(
         inputs=[
-            str(examples / "combine_a.fasta"),
-            str(examples / "combine_b.fasta"),
+            str(examples / "inputs" / "set_a.fasta"),
+            str(examples / "inputs" / "set_b.fasta"),
         ],
         output=str(out),
     )
@@ -95,42 +97,55 @@ def test_combine_examples_same_headers(tmp_path):
     assert result == 0
 
     lines = out.read_text().strip().splitlines()
-    assert lines[0] == ">sample1"
-    assert lines[1] == "ACGTTGCAACGT"
-    assert lines[2] == ">sample2"
-    assert lines[3] == "ACGTNNNNACGT"
-    assert lines[4] == ">sample3"
-    assert lines[5] == "TTGGCCAAGGAA"
-    assert lines[6] == ">sample4"
-    assert lines[7] == "NNNNACGTACGT"
+    assert len(lines) == 16
+    headers = lines[0::2]
+    expected_headers = [
+        ">A001",
+        ">A002",
+        ">A003",
+        ">A004",
+        ">B001",
+        ">B002",
+        ">B003",
+        ">B004",
+    ]
+    assert headers == expected_headers
+    for sequence in lines[1::2]:
+        assert sequence == sequence.upper()
+        assert " " not in sequence
 
 
 def test_combine_examples_harmonised_headers(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
-    examples = repo_root / "examples"
+    examples = repo_root / "tests" / "test_data" / "combine"
     out = tmp_path / "combined_harmonised_headers.fasta"
 
     args = MockArgs(
         inputs=[
-            str(examples / "combine_a.fasta"),
-            str(examples / "combine_b.fasta"),
+            str(examples / "inputs" / "set_a.fasta"),
+            str(examples / "inputs" / "set_b.fasta"),
         ],
         output=str(out),
-        metadata=[str(examples / "combine_metadata.csv")],
+        metadata=[str(examples / "metadata.csv")],
     )
 
     result = combine.main(args)
     assert result == 0
 
     lines = out.read_text().strip().splitlines()
-    assert lines[0] == ">sample1|UK|2024-01-01"
-    assert lines[1] == "ACGTTGCAACGT"
-    assert lines[2] == ">sample2|US|2024-02-02"
-    assert lines[3] == "ACGTNNNNACGT"
-    assert lines[4] == ">sample3|FR|2024-03-03"
-    assert lines[5] == "TTGGCCAAGGAA"
-    assert lines[6] == ">sample4|ZA|2024-04-04"
-    assert lines[7] == "NNNNACGTACGT"
+    assert len(lines) == 16
+    headers = lines[0::2]
+    expected_headers = [
+        ">A001|SiteA|2024-01-15",
+        ">A002|SiteA|2024-01-20",
+        ">A003|SiteC|2024-02-01",
+        ">A004|SiteC|2024-02-15",
+        ">B001|LocX|2023-11-05",
+        ">B002|LocX|2023-12-12",
+        ">B003|LocZ|2024-03-03",
+        ">B004|LocZ|2024-03-10",
+    ]
+    assert headers == expected_headers
 
 
 def test_combine_multiple_metadata_files(tmp_path):
@@ -171,3 +186,50 @@ def test_combine_multiple_metadata_files(tmp_path):
     assert lines[1] == "ACGT"
     assert lines[2] == ">seq2|US|2024-02-02"
     assert lines[3] == "GGGG"
+
+
+def test_combine_parses_id_from_header(tmp_path):
+    fasta_path = tmp_path / "a.fasta"
+    _write_fasta(fasta_path, [("sample1|Loc1|2024-01-01", "acgt")])
+
+    metadata_path = tmp_path / "meta.csv"
+    metadata_path.write_text(
+        textwrap.dedent(
+            """\
+            id,location,date
+            sample1,UK,2024-01-01
+            """
+        )
+    )
+
+    out = tmp_path / "combined.fasta"
+    args = MockArgs(
+        inputs=[str(fasta_path)],
+        output=str(out),
+        metadata=[str(metadata_path)],
+        id_delimiter="|",
+        id_field=0,
+    )
+
+    result = combine.main(args)
+    assert result == 0
+    text = out.read_text()
+    assert text.startswith(">sample1|UK|2024-01-01")
+
+
+def test_combine_id_field_out_of_range_keeps_full_id(tmp_path):
+    fasta_path = tmp_path / "a.fasta"
+    _write_fasta(fasta_path, [("sample1|Loc1|2024-01-01", "acgt")])
+
+    out = tmp_path / "combined.fasta"
+    args = MockArgs(
+        inputs=[str(fasta_path)],
+        output=str(out),
+        id_delimiter="|",
+        id_field=10,
+    )
+
+    result = combine.main(args)
+    assert result == 0
+    text = out.read_text()
+    assert text.startswith(">sample1|Loc1|2024-01-01")

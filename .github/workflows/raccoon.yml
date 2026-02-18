@@ -23,8 +23,12 @@ jobs:
         run: python -c "import sys; print(sys.version)"
       - name: Install raccoon
         run: pip3 install --break-system-packages -e .
+      - name: Install test dependencies
+        run: pip install pytest
       - name: Check raccoon version
         run: raccoon --version
+      - name: Run test suite
+        run: pytest
       - name: Run raccoon seq-qc with test data
         run: raccoon seq-qc examples/combine/inputs/set_a.fasta examples/combine/inputs/set_b.fasta -o /tmp/combined.fasta
       - name: Run raccoon aln-qc with test data
