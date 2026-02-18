@@ -171,6 +171,8 @@ def generate_combine_report(
             "len_min": _safe_min(lengths),
             "len_max": _safe_max(lengths),
             "len_mean": round(_safe_mean(lengths), 2),
+            "n_min": round(_safe_min(n_contents), 4),
+            "n_max": round(_safe_max(n_contents), 4),
             "n_mean": round(_safe_mean(n_contents), 4),
         })
         ids_by_file[os.path.basename(path)] = ids
@@ -180,11 +182,17 @@ def generate_combine_report(
     metadata_tables: List[Dict[str, Any]] = []
     metadata_locations = pd.Series(dtype=str)
     metadata_dates = pd.Series(dtype="datetime64[ns]")
+    def _infer_delimiter(path: str, fallback: str = ",") -> str:
+        lowered = path.lower()
+        if lowered.endswith(".tsv") or lowered.endswith(".tab"):
+            return "\t"
+        return fallback
+
     if metadata_paths:
         try:
             frames = []
             for path in metadata_paths:
-                frame = pd.read_csv(path)
+                frame = pd.read_csv(path, sep=_infer_delimiter(path))
                 frames.append(frame)
                 cols = list(frame.columns)
                 metadata_tables.append({
@@ -212,14 +220,7 @@ def generate_combine_report(
 
     header_stats = {"locations": 0, "dates": ""}
     try:
-        if metadata_paths and not metadata_locations.empty:
-            header_stats["locations"] = int(metadata_locations.nunique())
-            if not metadata_dates.empty:
-                date_min = metadata_dates.min()
-                date_max = metadata_dates.max()
-                if pd.notna(date_min) and pd.notna(date_max):
-                    header_stats["dates"] = f"{date_min.date().isoformat()} → {date_max.date().isoformat()}"
-        elif output_fasta:
+        if output_fasta:
             locs = set()
             dates = []
             for rec in SeqIO.parse(output_fasta, "fasta"):
@@ -238,28 +239,36 @@ def generate_combine_report(
                 dmin = min(dates)
                 dmax = max(dates)
                 header_stats["dates"] = f"{dmin.date().isoformat()} → {dmax.date().isoformat()}"
+        elif metadata_paths and not metadata_locations.empty:
+            header_stats["locations"] = int(metadata_locations.nunique())
+            if not metadata_dates.empty:
+                date_min = metadata_dates.min()
+                date_max = metadata_dates.max()
+                if pd.notna(date_min) and pd.notna(date_max):
+                    header_stats["dates"] = f"{date_min.date().isoformat()} → {date_max.date().isoformat()}"
     except Exception:
         pass
 
     dataset_plot_html = ""
     date_location_records = []
-    if metadata_paths:
+    if output_fasta:
         try:
-            frames = []
-            for path in metadata_paths:
-                frames.append(pd.read_csv(path))
-            meta = pd.concat(frames, ignore_index=True)
-            if metadata_date_field in meta.columns and metadata_location_field in meta.columns:
-                dates = pd.to_datetime(meta[metadata_date_field], errors="coerce")
-                locations = meta[metadata_location_field].astype(str)
-                ids = meta.get(metadata_id_field, pd.Series(dtype=str)).astype(str)
-                for date_value, location, seq_id in zip(dates, locations, ids):
-                    if pd.notna(date_value) and pd.notna(location) and location:
-                        date_location_records.append({
-                            "date": date_value,
-                            "location": location,
-                            "id": seq_id,
-                        })
+            for rec in SeqIO.parse(output_fasta, "fasta"):
+                parts = rec.id.split(header_separator)
+                if len(parts) < 3:
+                    continue
+                location = parts[1].strip()
+                date_value = parts[2].strip()
+                if not location or not date_value:
+                    continue
+                parsed_date = pd.to_datetime(date_value, errors="coerce")
+                if pd.isna(parsed_date):
+                    continue
+                date_location_records.append({
+                    "date": parsed_date,
+                    "location": location,
+                    "id": parts[0],
+                })
         except Exception:
             date_location_records = []
     elif output_fasta:
@@ -328,28 +337,25 @@ def generate_combine_report(
                 hovertemplate="Length: %{x}<br>Count: %{y}<br>IDs: %{customdata}<extra></extra>",
             )
         ])
+        max_len = max(lengths_sorted) if lengths_sorted else 0
         fig.update_layout(
             xaxis_title="Sequence length (bp)",
             yaxis_title="Count",
             showlegend=False,
             dragmode=False,
         )
+        fig.update_xaxes(range=[0, max_len], rangemode="tozero")
         if min_length is not None:
-            fig.add_vline(
-                x=min_length,
-                line_width=2,
-                line_dash="dash",
-                line_color="#c77c8a",
+            fig.add_shape(
+                type="line",
+                x0=min_length,
+                x1=min_length,
+                y0=0,
+                y1=1,
+                xref="x",
+                yref="paper",
+                line=dict(color="#c77c8a", width=2, dash="dash"),
             )
-            if counts:
-                fig.add_trace(go.Scatter(
-                    x=[min_length],
-                    y=[max(counts)],
-                    mode="markers",
-                    marker=dict(opacity=0),
-                    hovertemplate="min length: %{x}<extra></extra>",
-                    showlegend=False,
-                ))
         _apply_plot_style(fig)
         length_plot_html = _plot_div(fig)
 
@@ -710,9 +716,13 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
                     hovertemplate="%{text}<br>Date: %{x|%Y-%m-%d}<br>Distance: %{y:.4f}<extra></extra>",
                     name="Tips",
                 ))
+                x_min = float(x_num.min())
+                x_max = float(x_num.max())
+                x_line = [x_dates.min(), x_dates.max()]
+                y_line = [slope * x_min + intercept, slope * x_max + intercept]
                 fig.add_trace(go.Scatter(
-                    x=x_dates,
-                    y=y_hat,
+                    x=x_line,
+                    y=y_line,
                     mode="lines",
                     line=dict(color="#7A6BB1"),
                     hoverinfo="skip",

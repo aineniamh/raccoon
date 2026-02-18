@@ -26,32 +26,33 @@
 
     <div id="inputs" class="card">
       <h3>1. Inputs & sequences</h3>
-      <div class="table-wrap">
-        <table class="datatable">
-          <thead>
-            <tr>
-              <th>File</th><th>Seqs</th><th>Length (min)</th><th>Length (max)</th><th>Length (mean)</th><th>N mean</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in records_summary %}
-              <tr>
-                <td>{{ row.file }}</td>
-                <td>{{ row.sequences }}</td>
-                <td>{{ row.len_min }}</td>
-                <td>{{ row.len_max }}</td>
-                <td>{{ row.len_mean }}</td>
-                <td>{{ row.n_mean }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <details>
-        <summary>Show sequence details</summary>
-        {% for file_block in seq_details_by_file %}
-          <details>
-            <summary>{{ file_block.file }} ({{ file_block.details | length }} sequences)</summary>
+      {% for row in records_summary %}
+        {% set file_block = (seq_details_by_file | selectattr('file', 'equalto', row.file) | list | first) %}
+        <details class="file-details">
+          <summary>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>File</th><th>Seqs</th><th>Length (min)</th><th>Length (max)</th><th>Length (mean)</th><th>N (min)</th><th>N (max)</th><th>N (mean)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{{ row.file }}</td>
+                    <td>{{ row.sequences }}</td>
+                    <td>{{ row.len_min }}</td>
+                    <td>{{ row.len_max }}</td>
+                    <td>{{ row.len_mean }}</td>
+                    <td>{{ row.n_min }}</td>
+                    <td>{{ row.n_max }}</td>
+                    <td>{{ row.n_mean }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </summary>
+          {% if file_block %}
             <div class="table-wrap">
               <table class="datatable">
                 <thead>
@@ -71,9 +72,9 @@
                 </tbody>
               </table>
             </div>
-          </details>
-        {% endfor %}
-      </details>
+          {% endif %}
+        </details>
+      {% endfor %}
     </div>
 
     <div id="lengths" class="card">
@@ -91,41 +92,51 @@
       <p>{{ metadata_summary }}</p>
       {% if metadata_tables %}
         {% for table in metadata_tables %}
-          <div class="metadata-block">
-            <div class="metadata-title">{{ table.title }} ({{ table.row_count }} rows)</div>
-            <table>
-              <thead>
-                <tr>
-                  {% for header in table.headers %}
-                    <th>{{ header }}</th>
-                  {% endfor %}
-                </tr>
-              </thead>
-            </table>
-            <details>
-              <summary>Show rows</summary>
+          <details class="metadata-block">
+            <summary>
               <div class="table-wrap">
-                <table class="datatable">
+                <table>
                   <thead>
                     <tr>
+                      <th>Metadata file</th><th>Rows</th>
                       {% for header in table.headers %}
                         <th>{{ header }}</th>
                       {% endfor %}
                     </tr>
                   </thead>
                   <tbody>
-                    {% for row in table.rows %}
-                      <tr>
-                        {% for cell in row %}
-                          <td>{{ cell }}</td>
-                        {% endfor %}
-                      </tr>
-                    {% endfor %}
+                    <tr>
+                      <td>{{ table.title }}</td>
+                      <td>{{ table.row_count }}</td>
+                      {% for _ in table.headers %}
+                        <td></td>
+                      {% endfor %}
+                    </tr>
                   </tbody>
                 </table>
               </div>
-            </details>
-          </div>
+            </summary>
+            <div class="table-wrap">
+              <table class="datatable">
+                <thead>
+                  <tr>
+                    {% for header in table.headers %}
+                      <th>{{ header }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in table.rows %}
+                    <tr>
+                      {% for cell in row %}
+                        <td>{{ cell }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
         {% endfor %}
       {% else %}
         <p>No metadata tables available.</p>
