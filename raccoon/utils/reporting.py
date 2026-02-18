@@ -19,6 +19,7 @@ from plotly.offline import plot
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .reconstruction_functions import load_tree, ensure_node_label
+from .bot_baltic import build_tree_plot
 
 
 def _svg_data_uri(path: str) -> str:
@@ -102,6 +103,8 @@ def _plot_div(fig: go.Figure, div_id: Optional[str] = None) -> str:
         config={"displayModeBar": False},
         div_id=div_id,
     )
+
+
 
 
 def _safe_mean(values: Iterable[float]) -> float:
@@ -878,6 +881,8 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
         _apply_plot_style(fig)
         mutation_types_plot = _plot_div(fig)
 
+    tree_plot_html = build_tree_plot(treefile, tree_format=tree_format)
+
     outpath = os.path.join(outdir, "tree-qc_report.html")
     context = {
         "summary": {
@@ -885,6 +890,7 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
             "tree_height": getattr(my_tree, "treeHeight", "n/a"),
             "y_span": getattr(my_tree, "ySpan", "n/a"),
         },
+        "tree_plot_html": tree_plot_html,
         "root_to_tip_plot_html": root_to_tip_plot,
         "convergent_table": convergent_table,
         "reversion_table": reversion_table,
