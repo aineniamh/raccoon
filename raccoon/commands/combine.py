@@ -77,12 +77,20 @@ def main(args):
                 return 1
 
         metadata_map: Optional[Dict[str, Dict[str, str]]] = None
-        if args.metadata:
-            metadata_paths = list(args.metadata)
+        metadata_paths = list(getattr(args, "metadata", []) or [])
+        metadata_id_field = getattr(args, "metadata_id_field", "id")
+        metadata_location_field = getattr(args, "metadata_location_field", "location")
+        metadata_date_field = getattr(args, "metadata_date_field", "date")
+        metadata_delimiter = getattr(args, "metadata_delimiter", ",")
+        header_separator = getattr(args, "header_separator", "|")
+        min_length = getattr(args, "min_length", None)
+        max_n_content = getattr(args, "max_n_content", None)
+
+        if metadata_paths:
             for path in metadata_paths:
                 if not io.validate_input_file(path, "Metadata file"):
                     return 1
-            metadata_map = load_metadata_maps(metadata_paths, args.metadata_id_field, args.metadata_delimiter)
+            metadata_map = load_metadata_maps(metadata_paths, metadata_id_field, metadata_delimiter)
 
         output_path = args.output or "combined.fasta"
         if output_path == "-":
@@ -100,10 +108,10 @@ def main(args):
                     seq = str(rec.seq)
                     seq_len = len(seq)
                     n_prop = n_content(seq)
-                    if args.min_length is not None and seq_len < args.min_length:
+                    if min_length is not None and seq_len < min_length:
                         filtered_count += 1
                         continue
-                    if args.max_n_content is not None and n_prop > args.max_n_content:
+                    if max_n_content is not None and n_prop > max_n_content:
                         filtered_count += 1
                         continue
                     header = rec.id
@@ -113,9 +121,9 @@ def main(args):
                             header = format_header(
                                 rec.id,
                                 row,
-                                args.metadata_location_field,
-                                args.metadata_date_field,
-                                args.header_separator,
+                                metadata_location_field,
+                                metadata_date_field,
+                                header_separator,
                             )
                         else:
                             logging.warning("No metadata row found for %s", rec.id)
@@ -132,19 +140,19 @@ def main(args):
                 outdir=report_outdir,
                 output_fasta=output_path if output_path != "-" else "",
                 input_fastas=inputs,
-                metadata_paths=args.metadata or None,
-                metadata_id_field=args.metadata_id_field,
-                metadata_location_field=args.metadata_location_field,
-                metadata_date_field=args.metadata_date_field,
-                header_separator=args.header_separator,
-                min_length=args.min_length,
-                max_n_content=args.max_n_content,
+                metadata_paths=metadata_paths or None,
+                metadata_id_field=metadata_id_field,
+                metadata_location_field=metadata_location_field,
+                metadata_date_field=metadata_date_field,
+                header_separator=header_separator,
+                min_length=min_length,
+                max_n_content=max_n_content,
             )
         except Exception:
             logging.exception("Failed to generate combine report")
 
         logging.info("Combined %d input FASTA files", len(inputs))
-        if args.min_length is not None or args.max_n_content is not None:
+        if min_length is not None or max_n_content is not None:
             logging.info("Filtered %d sequences; kept %d", filtered_count, kept_count)
         return 0
     except Exception:
