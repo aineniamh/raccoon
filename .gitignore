@@ -199,6 +199,16 @@ cython_debug/
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
+
+# macOS
+.DS_Store
+
+# Generated report outputs
+alignment_qc_summary.txt
+alignment_report.html
+examples/report_examples/
+examples/*_report_out/
+examples/*_report.html
 .cursorindexingignore
 
 # Marimo
