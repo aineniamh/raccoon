@@ -1,5 +1,117 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="section">{{ summary_html | safe }}</div>
-  <div class="section">{{ plots_html | safe }}</div>
+  <div class="section">
+    <div class="toc card">
+      <h3>Table of contents</h3>
+      <ol>
+        <li><a href="#summary">Summary</a></li>
+        <li><a href="#n-blocks">Alignment N-content</a></li>
+        <li><a href="#reported">Flagged sites</a></li>
+        <li><a href="#flagged">Flagged sites by category</a></li>
+        <li><a href="#diversity">Per-site diversity</a></li>
+      </ol>
+    </div>
+
+    <div id="summary" class="card">
+      <h3>1. Summary</h3>
+      <p>Sequences: {{ summary.sequences }}</p>
+      <p>Alignment length: {{ summary.alignment_length }}</p>
+      <p>Mean N content: {{ summary.mean_n_content }}</p>
+      <p>Mean completeness: {{ summary.mean_completeness }}</p>
+    </div>
+
+    <div id="n-blocks" class="card">
+      <h3>2. Alignment N-content</h3>
+      {% if n_blocks_plot_html %}
+        {{ n_blocks_plot_html | safe }}
+      {% else %}
+        <p>No alignment data available for plotting.</p>
+      {% endif %}
+      <p class="caption">Grey blocks represent N positions along the alignment for each sequence.</p>
+    </div>
+    {% if has_n_blocks_plot %}
+      <script>
+        (function () {
+          var plot = document.getElementById('n-blocks-plot');
+          if (!plot || !window.Plotly) return;
+          function applyLabels(range) {
+            var show = false;
+            if (range && range[0] !== undefined && range[1] !== undefined) {
+              show = (range[1] - range[0]) <= 100;
+            }
+            var template = show ? "%{text}" : "";
+            Plotly.restyle(plot, {texttemplate: template});
+          }
+          plot.on('plotly_relayout', function (eventData) {
+            if (eventData['xaxis.range[0]'] !== undefined && eventData['xaxis.range[1]'] !== undefined) {
+              applyLabels([eventData['xaxis.range[0]'], eventData['xaxis.range[1]']]);
+            } else if (eventData['xaxis.autorange']) {
+              applyLabels(null);
+            }
+          });
+        })();
+      </script>
+    {% endif %}
+
+    <div id="reported" class="card">
+      <h3>3. Flagged sites</h3>
+      {% if sites_table %}
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in sites_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in sites_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No reported sites table available.</p>
+      {% endif %}
+    </div>
+
+    <div id="flagged" class="card">
+      <h3>4. Flagged sites by category</h3>
+      {% if flagged_plot_html %}
+        {{ flagged_plot_html | safe }}
+      {% else %}
+        <p>No flagged site plot available.</p>
+      {% endif %}
+    </div>
+
+    <div id="diversity" class="card">
+      <h3>5. Per-site diversity</h3>
+      {% if diversity_plot_html %}
+        {{ diversity_plot_html | safe }}
+      {% else %}
+        <p>No diversity plot available.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>Datafiles</h3>
+      <p>Input alignment: {{ datafiles.alignment }}</p>
+      <p>Mask file: {{ datafiles.mask_file }}</p>
+      <p>Output directory: {{ datafiles.output_dir }}</p>
+    </div>
+
+    <div id="report-metadata" class="card">
+      <h3>Report metadata</h3>
+      <p>Generated: {{ report_metadata.generated_stamp }}</p>
+      <p>Raccoon version: {{ report_metadata.raccoon_version }}</p>
+      <p>Python: {{ report_metadata.python_version }}</p>
+      <p>Platform: {{ report_metadata.platform }}</p>
+    </div>
+  </div>
 {% endblock %}

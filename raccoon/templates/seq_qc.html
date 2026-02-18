@@ -1,5 +1,182 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="section">{{ summary_html | safe }}</div>
-  <div class="section">{{ plots_html | safe }}</div>
+  <div class="section">
+    <div class="toc card">
+      <h3>Table of contents</h3>
+      <ol>
+        <li><a href="#summary">Summary</a></li>
+        <li><a href="#inputs">Inputs & sequences</a></li>
+        <li><a href="#lengths">Sequence length description</a></li>
+        <li><a href="#metadata">Metadata</a></li>
+        <li><a href="#dataset">Dataset description</a></li>
+        <li><a href="#final">Final IDs</a></li>
+        <li><a href="#report-metadata">Report metadata</a></li>
+      </ol>
+    </div>
+
+    <div id="summary" class="card">
+      <h3>Summary</h3>
+      <p>Total sequences: {{ summary.total_sequences }}</p>
+      <p>Filtered: {{ summary.filtered_count }}</p>
+      <p>Unique locations: {{ summary.locations }}</p>
+      <p>Date range: {{ summary.date_range }}</p>
+      <p>Command: <code>{{ summary.cmd_line }}</code></p>
+      <p>Filters: {{ summary.filters }}</p>
+    </div>
+
+    <div id="inputs" class="card">
+      <h3>1. Inputs & sequences</h3>
+      <div class="table-wrap">
+        <table class="datatable">
+          <thead>
+            <tr>
+              <th>File</th><th>Seqs</th><th>Length (min)</th><th>Length (max)</th><th>Length (mean)</th><th>N mean</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in records_summary %}
+              <tr>
+                <td>{{ row.file }}</td>
+                <td>{{ row.sequences }}</td>
+                <td>{{ row.len_min }}</td>
+                <td>{{ row.len_max }}</td>
+                <td>{{ row.len_mean }}</td>
+                <td>{{ row.n_mean }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <details>
+        <summary>Show sequence details</summary>
+        {% for file_block in seq_details_by_file %}
+          <details>
+            <summary>{{ file_block.file }} ({{ file_block.details | length }} sequences)</summary>
+            <div class="table-wrap">
+              <table class="datatable">
+                <thead>
+                  <tr><th>ID</th><th>Length</th><th>N content</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {% for detail in file_block.details %}
+                    {% set key = file_block.file ~ '::' ~ detail.id %}
+                    {% set is_filtered = key in filtered_keys %}
+                    <tr class="{% if is_filtered %}filtered{% endif %}">
+                      <td>{{ detail.id }}</td>
+                      <td>{{ detail.length }}</td>
+                      <td>{{ detail.n_content | round(4) }}</td>
+                      <td>{{ 'filtered' if is_filtered else 'kept' }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        {% endfor %}
+      </details>
+    </div>
+
+    <div id="lengths" class="card">
+      <h3>2. Sequence length description</h3>
+      {% if length_plot_html %}
+        {{ length_plot_html | safe }}
+      {% else %}
+        <p>No length data available for plotting.</p>
+      {% endif %}
+      <p class="caption">Distribution of sequence lengths across all input FASTAs.</p>
+    </div>
+
+    <div id="metadata" class="card">
+      <h3>3. Metadata</h3>
+      <p>{{ metadata_summary }}</p>
+      {% if metadata_tables %}
+        {% for table in metadata_tables %}
+          <div class="metadata-block">
+            <div class="metadata-title">{{ table.title }} ({{ table.row_count }} rows)</div>
+            <table>
+              <thead>
+                <tr>
+                  {% for header in table.headers %}
+                    <th>{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+            </table>
+            <details>
+              <summary>Show rows</summary>
+              <div class="table-wrap">
+                <table class="datatable">
+                  <thead>
+                    <tr>
+                      {% for header in table.headers %}
+                        <th>{{ header }}</th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in table.rows %}
+                      <tr>
+                        {% for cell in row %}
+                          <td>{{ cell }}</td>
+                        {% endfor %}
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No metadata tables available.</p>
+      {% endif %}
+    </div>
+
+    <div id="dataset" class="card">
+      <h3>4. Dataset description</h3>
+      <p>Unique locations: {{ summary.locations }}</p>
+      <p>Date range: {{ summary.date_range }}</p>
+      {% if dataset_plot_html %}
+        {{ dataset_plot_html | safe }}
+      {% else %}
+        <p>No date/location data available for plotting.</p>
+      {% endif %}
+      <p class="caption">Sampling timeline by location.</p>
+    </div>
+
+    <div id="final" class="card">
+      <h3>5. Final dataset</h3>
+      <div class="table-wrap">
+        <table class="datatable">
+          <thead>
+            <tr><th>ID</th><th>Length</th><th>N content</th></tr>
+          </thead>
+          <tbody>
+            {% for row in final_rows %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ row.length }}</td>
+                <td>{{ row.n_content }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Datafiles</h3>
+      <p>Inputs: {{ datafiles.inputs }}</p>
+      <p>Metadata: {{ datafiles.metadata }}</p>
+      <p>Output: {{ datafiles.output }}</p>
+    </div>
+
+    <div id="report-metadata" class="card">
+      <h3>Report metadata</h3>
+      <p>Generated: {{ report_metadata.generated_stamp }}</p>
+      <p>Raccoon version: {{ report_metadata.raccoon_version }}</p>
+      <p>Python: {{ report_metadata.python_version }}</p>
+      <p>Platform: {{ report_metadata.platform }}</p>
+    </div>
+  </div>
 {% endblock %}

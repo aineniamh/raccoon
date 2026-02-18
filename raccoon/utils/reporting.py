@@ -47,26 +47,31 @@ def _render_html(template_name: str, context: Dict[str, Any]) -> str:
     return template.render(**context)
 
 
-def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[str], template_name: str) -> None:
-    plots = "\n".join(plots_html)
+def _write_html(outfile: str, title: str, template_name: str, context: Dict[str, Any]) -> None:
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     raccoon_logo = _svg_data_uri(os.path.join(base_dir, "docs", "raccoon_logo.svg"))
     artic_logo = _svg_data_uri(os.path.join(base_dir, "docs", "artic-logo-small.svg"))
     raccoon_logo_html = _logo_html(raccoon_logo, "logo", "Raccoon logo")
     artic_logo_html = _logo_html(artic_logo, "logo-small", "ARTIC Network logo")
-    generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    context = {
+    base_context = {
         "title": title,
-        "summary_html": summary_html,
-        "plots_html": plots,
-        "generated_stamp": generated_stamp,
+        "generated_stamp": context.get("generated_stamp", datetime.now().strftime("%Y-%m-%d %H:%M")),
         "raccoon_logo": raccoon_logo,
         "raccoon_logo_html": raccoon_logo_html,
         "artic_logo_html": artic_logo_html,
     }
-    html = _render_html(template_name, context)
+    merged_context = {**base_context, **context}
+    html = _render_html(template_name, merged_context)
     with open(outfile, "w") as handle:
         handle.write(html)
+
+
+def _table_context(df: Optional[pd.DataFrame]) -> Optional[Dict[str, Any]]:
+    if df is None or df.empty:
+        return None
+    headers = list(df.columns)
+    rows = df.astype(str).values.tolist()
+    return {"headers": headers, "rows": rows}
 
 
 def _n_content(seq: str) -> float:
@@ -172,7 +177,7 @@ def generate_combine_report(
         seq_details_by_file[os.path.basename(path)] = seq_details
 
     metadata_summary = "No metadata used."
-    metadata_tables_html = ""
+    metadata_tables: List[Dict[str, Any]] = []
     metadata_locations = pd.Series(dtype=str)
     metadata_dates = pd.Series(dtype="datetime64[ns]")
     if metadata_paths:
@@ -182,26 +187,12 @@ def generate_combine_report(
                 frame = pd.read_csv(path)
                 frames.append(frame)
                 cols = list(frame.columns)
-                header_html = "".join([f"<th>{col}</th>" for col in cols])
-                rows_html = ""
-                for _, row in frame.iterrows():
-                    row_cells = "".join([f"<td>{row.get(col, '')}</td>" for col in cols])
-                    rows_html += f"<tr>{row_cells}</tr>"
-                metadata_tables_html += f"""
-                    <div class=\"metadata-block\">
-                        <div class=\"metadata-title\">{os.path.basename(path)} ({len(frame)} rows)</div>
-                        <table>
-                            <thead><tr>{header_html}</tr></thead>
-                        </table>
-                        <details>
-                            <summary>Show rows</summary>
-                            <div class=\"table-wrap\"><table class=\"datatable\">
-                                <thead><tr>{header_html}</tr></thead>
-                                <tbody>{rows_html}</tbody>
-                            </table></div>
-                        </details>
-                    </div>
-                """
+                metadata_tables.append({
+                    "title": os.path.basename(path),
+                    "row_count": len(frame),
+                    "headers": cols,
+                    "rows": frame.astype(str).values.tolist(),
+                })
             meta = pd.concat(frames, ignore_index=True)
             metadata_locations = meta.get(metadata_location_field, pd.Series(dtype=str)).dropna().astype(str)
             metadata_dates = pd.to_datetime(meta.get(metadata_date_field, pd.Series(dtype=str)), errors="coerce")
@@ -402,111 +393,41 @@ def generate_combine_report(
         from raccoon import __version__ as raccoon_version
     except Exception:
         raccoon_version = "unknown"
-    summary_html = f"""
-        <div class=\"toc card\">
-            <h3>Table of contents</h3>
-            <ol>
-                <li><a href=\"#summary\">Summary</a></li>
-                <li><a href=\"#inputs\">Inputs & sequences</a></li>
-                <li><a href=\"#lengths\">Sequence length description</a></li>
-                <li><a href=\"#metadata\">Metadata</a></li>
-                <li><a href=\"#dataset\">Dataset description</a></li>
-                <li><a href=\"#final\">Final IDs</a></li>
-                <li><a href=\"#report-metadata\">Report metadata</a></li>
-            </ol>
-        </div>
-        <div id=\"summary\" class=\"card\">
-            <h3>Summary</h3>
-            <p>Total sequences: {total_sequences}</p>
-            <p>Filtered: {filtered_count}</p>
-            <p>Unique locations: {header_stats.get("locations", 0)}</p>
-            <p>Date range: {header_stats.get("dates", "")}</p>
-            <p>Command: <code>{cmd_line}</code></p>
-            <p>Filters: {filter_summary_text}</p>
-        </div>
-        <div id=\"inputs\" class=\"card\">
-            <h3>1. Inputs & sequences</h3>
-            <div class=\"table-wrap\"><table class=\"datatable\">
-                <thead><tr><th>File</th><th>Seqs</th><th>Length (min)</th><th>Length (max)</th><th>Length (mean)</th><th>N mean</th></tr></thead>
-                <tbody>
-    """
-    for row in records_summary:
-        summary_html += (
-            f"<tr><td>{row['file']}</td><td>{row['sequences']}</td>"
-            f"<td>{row['len_min']}</td><td>{row['len_max']}</td>"
-            f"<td>{row['len_mean']}</td><td>{row['n_mean']}</td></tr>"
-        )
-    summary_html += """
-                </tbody>
-            </table></div>
-    """
-    summary_html += """
-            <details>
-                <summary>Show sequence details</summary>
-    """
-    for fname, seq_details in seq_details_by_file.items():
-        summary_html += f"<details><summary>{fname} ({len(seq_details)} sequences)</summary>"
-        summary_html += "<div class=\"table-wrap\"><table class=\"datatable\"><thead><tr><th>ID</th><th>Length</th><th>N content</th><th>Status</th></tr></thead><tbody>"
-        for detail in seq_details:
-            filtered = (fname, detail["id"]) in filtered_lookup
-            row_class = "filtered" if filtered else ""
-            status = "filtered" if filtered else "kept"
-            summary_html += (
-                f"<tr class=\"{row_class}\"><td>{detail['id']}</td><td>{detail['length']}</td>"
-                f"<td>{round(detail['n_content'], 4)}</td><td>{status}</td></tr>"
-            )
-        summary_html += "</tbody></table></div></details>"
-    summary_html += f"""
-            </details>
-        </div>
-        <div id=\"lengths\" class=\"card\">
-            <h3>2. Sequence length description</h3>
-            {length_plot_html if length_plot_html else "<p>No length data available for plotting.</p>"}
-            <p class=\"caption\">Distribution of sequence lengths across all input FASTAs.</p>
-        </div>
-        <div id=\"metadata\" class=\"card\">
-            <h3>3. Metadata</h3>
-            <p>{metadata_summary}</p>
-            {metadata_tables_html if metadata_tables_html else "<p>No metadata tables available.</p>"}
-        </div>
-        <div id=\"dataset\" class=\"card\">
-            <h3>4. Dataset description</h3>
-            <p>Unique locations: {header_stats.get("locations", 0)}</p>
-            <p>Date range: {header_stats.get("dates", "")}</p>
-            {dataset_plot_html if dataset_plot_html else "<p>No date/location data available for plotting.</p>"}
-            <p class=\"caption\">Sampling timeline by location.</p>
-        </div>
-        <div id=\"final\" class=\"card\">
-            <h3>5. Final dataset</h3>
-            <div class=\"table-wrap\"><table class=\"datatable\">
-                <thead><tr><th>ID</th><th>Length</th><th>N content</th></tr></thead>
-                <tbody>
-    """
-    for row in final_rows:
-        summary_html += f"<tr><td>{row['id']}</td><td>{row['length']}</td><td>{row['n_content']}</td></tr>"
-    summary_html += f"""
-                </tbody>
-            </table></div>
-        </div>
-        <div class=\"card\">
-            <h3>Datafiles </h3>
-            <p>Inputs: {provenance_inputs}</p>
-            <p>Metadata: {provenance_metadata}</p>
-            <p>Output: {provenance_output}</p>
-        </div>
-        <div id=\"report-metadata\" class=\"card\">
-            <h3>Report metadata</h3>
-            <p>Generated: {generated_stamp}</p>
-            <p>Raccoon version: {raccoon_version}</p>
-            <p>Python: {sys.version.split()[0]}</p>
-            <p>Platform: {platform.system()} {platform.release()}</p>
-        </div>
-    """
-
-    plots_html = []
-
     outpath = os.path.join(outdir, "seq-qc_report.html")
-    _write_html(outpath, "Raccoon seq-qc report", summary_html, plots_html, "seq_qc.html")
+    context = {
+        "summary": {
+            "total_sequences": total_sequences,
+            "filtered_count": filtered_count,
+            "locations": header_stats.get("locations", 0),
+            "date_range": header_stats.get("dates", ""),
+            "cmd_line": cmd_line,
+            "filters": filter_summary_text,
+        },
+        "records_summary": records_summary,
+        "seq_details_by_file": [
+            {"file": fname, "details": details}
+            for fname, details in seq_details_by_file.items()
+        ],
+        "filtered_keys": {f"{f}::{i}" for f, i in filtered_lookup},
+        "length_plot_html": length_plot_html,
+        "metadata_summary": metadata_summary,
+        "metadata_tables": metadata_tables,
+        "dataset_plot_html": dataset_plot_html,
+        "final_rows": final_rows,
+        "datafiles": {
+            "inputs": provenance_inputs,
+            "metadata": provenance_metadata,
+            "output": provenance_output,
+        },
+        "report_metadata": {
+            "generated_stamp": generated_stamp,
+            "raccoon_version": raccoon_version,
+            "python_version": sys.version.split()[0],
+            "platform": f"{platform.system()} {platform.release()}",
+        },
+        "generated_stamp": generated_stamp,
+    }
+    _write_html(outpath, "Raccoon seq-qc report", "seq_qc.html", context)
     return outpath
 
 
@@ -553,7 +474,7 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
                         site_to_ids[site_int] = ids
         except Exception:
             site_to_ids = {}
-    sites_table_html = ""
+    sites_table: Optional[Dict[str, Any]] = None
     if mask_file and os.path.exists(mask_file):
         site_rows = []
         with open(mask_file, "r") as handle:
@@ -562,16 +483,8 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
                 site_rows.append(row)
         if site_rows:
             headers = list(site_rows[0].keys())
-            head_html = "".join([f"<th>{h}</th>" for h in headers])
-            body_html = ""
-            for row in site_rows:
-                body_html += "<tr>" + "".join([f"<td>{row.get(h, '')}</td>" for h in headers]) + "</tr>"
-            sites_table_html = f"""
-            <div class=\"table-wrap\"><table class=\"datatable\">
-                <thead><tr>{head_html}</tr></thead>
-                <tbody>{body_html}</tbody>
-            </table></div>
-            """
+            rows = [[row.get(h, "") for h in headers] for row in site_rows]
+            sites_table = {"headers": headers, "rows": rows}
     n_blocks_plot_html = ""
     if seq_strings and aln_len:
         z = []
@@ -687,81 +600,33 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
         _apply_plot_style(fig)
         diversity_plot_html = _plot_div(fig)
 
-    summary_html = f"""
-    <div class=\"toc card\">
-        <h3>Table of contents</h3>
-        <ol>
-            <li><a href=\"#summary\">Summary</a></li>
-            <li><a href=\"#n-blocks\">Alignment N-content</a></li>
-            <li><a href=\"#reported\">Flagged sites</a></li>
-            <li><a href=\"#flagged\">Flagged sites by category</a></li>
-            <li><a href=\"#diversity\">Per-site diversity</a></li>
-        </ol>
-    </div>
-    <div id=\"summary\" class=\"card\">
-        <h3>1. Summary</h3>
-        <p>Sequences: {len(lengths)}</p>
-        <p>Alignment length: {aln_len}</p>
-        <p>Mean N content: {round(_safe_mean(n_contents), 4)}</p>
-        <p>Mean completeness: {round(_safe_mean(completeness), 4)}</p>
-    </div>
-    <div id=\"n-blocks\" class=\"card\">
-        <h3>2. Alignment N-content</h3>
-        {n_blocks_plot_html if n_blocks_plot_html else "<p>No alignment data available for plotting.</p>"}
-        <p class=\"caption\">Grey blocks represent N positions along the alignment for each sequence.</p>
-    </div>
-        <script>
-            (function () {{
-                var plot = document.getElementById('n-blocks-plot');
-                if (!plot || !window.Plotly) return;
-                function applyLabels(range) {{
-                    var show = false;
-                    if (range && range[0] !== undefined && range[1] !== undefined) {{
-                        show = (range[1] - range[0]) <= 100;
-                    }}
-                    var template = show ? "%{text}" : "";
-                    Plotly.restyle(plot, {{texttemplate: template}});
-                }}
-                plot.on('plotly_relayout', function (eventData) {{
-                    if (eventData['xaxis.range[0]'] !== undefined && eventData['xaxis.range[1]'] !== undefined) {{
-                        applyLabels([eventData['xaxis.range[0]'], eventData['xaxis.range[1]']]);
-                    }} else if (eventData['xaxis.autorange']) {{
-                        applyLabels(null);
-                    }}
-                }});
-            }})();
-        </script>
-    <div id=\"reported\" class=\"card\">
-        <h3>3. Flagged sites</h3>
-        {sites_table_html if sites_table_html else "<p>No reported sites table available.</p>"}
-    </div>
-    <div id=\"flagged\" class=\"card\">
-        <h3>4. Flagged sites by category</h3>
-        {flagged_plot_html if flagged_plot_html else "<p>No flagged site plot available.</p>"}
-    </div>
-    <div id=\"diversity\" class=\"card\">
-        <h3>5. Per-site diversity</h3>
-        {diversity_plot_html if diversity_plot_html else "<p>No diversity plot available.</p>"}
-    </div>
-    <div class=\"card\">
-        <h3>Datafiles</h3>
-        <p>Input alignment: {os.path.basename(alignment_path)}</p>
-        <p>Mask file: {os.path.basename(mask_file) if mask_file else "None"}</p>
-        <p>Output directory: {os.path.basename(outdir) if outdir else ""}</p>
-    </div>
-    <div id=\"report-metadata\" class=\"card\">
-        <h3>Report metadata</h3>
-        <p>Generated: {generated_stamp}</p>
-        <p>Raccoon version: {raccoon_version}</p>
-        <p>Python: {sys.version.split()[0]}</p>
-        <p>Platform: {platform.system()} {platform.release()}</p>
-    </div>
-    """
-
-    plots_html = []
-
     outpath = os.path.join(outdir, "aln-qc_report.html")
-    _write_html(outpath, "Raccoon aln-qc report", summary_html, plots_html, "aln_qc.html")
+    context = {
+        "summary": {
+            "sequences": len(lengths),
+            "alignment_length": aln_len,
+            "mean_n_content": round(_safe_mean(n_contents), 4),
+            "mean_completeness": round(_safe_mean(completeness), 4),
+        },
+        "n_blocks_plot_html": n_blocks_plot_html,
+        "has_n_blocks_plot": bool(n_blocks_plot_html),
+        "sites_table": sites_table,
+        "flagged_plot_html": flagged_plot_html,
+        "diversity_plot_html": diversity_plot_html,
+        "datafiles": {
+            "alignment": os.path.basename(alignment_path),
+            "mask_file": os.path.basename(mask_file) if mask_file else "None",
+            "output_dir": os.path.basename(outdir) if outdir else "",
+        },
+        "report_metadata": {
+            "generated_stamp": generated_stamp,
+            "raccoon_version": raccoon_version,
+            "python_version": sys.version.split()[0],
+            "platform": f"{platform.system()} {platform.release()}",
+        },
+        "generated_stamp": generated_stamp,
+    }
+    _write_html(outpath, "Raccoon aln-qc report", "aln_qc.html", context)
     return outpath
 
 
@@ -791,29 +656,16 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
         except Exception:
             flags_df = None
 
-    def _build_table(df: pd.DataFrame) -> str:
-        if df is None or df.empty:
-            return ""
-        headers = list(df.columns)
-        head_html = "".join([f"<th>{h}</th>" for h in headers])
-        body_html = ""
-        for _, row in df.iterrows():
-            body_html += "<tr>" + "".join([f"<td>{row.get(h, '')}</td>" for h in headers]) + "</tr>"
-        return f"<div class=\"table-wrap\"><table class=\"datatable\"><thead><tr>{head_html}</tr></thead><tbody>{body_html}</tbody></table></div>"
-
-    convergent_table = "<p>No convergent mutations flagged.</p>"
-    reversion_table = "<p>No reversions flagged.</p>"
-    immune_editing_table = "<p>No immune editing signatures flagged.</p>"
+    convergent_table = None
+    reversion_table = None
+    immune_editing_table = None
     if flags_df is not None and not flags_df.empty and "mutation_type" in flags_df.columns:
         convergent = flags_df[flags_df["mutation_type"].str.contains("convergent", case=False, na=False)]
-        if not convergent.empty:
-            convergent_table = _build_table(convergent)
+        convergent_table = _table_context(convergent)
         reversion = flags_df[flags_df["mutation_type"].str.contains("reversion", case=False, na=False)]
-        if not reversion.empty:
-            reversion_table = _build_table(reversion)
+        reversion_table = _table_context(reversion)
         immune = flags_df[flags_df["mutation_type"].str.contains("adar|apobec", case=False, na=False)]
-        if not immune.empty:
-            immune_editing_table = _build_table(immune)
+        immune_editing_table = _table_context(immune)
 
     generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     try:
@@ -902,61 +754,30 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
         _apply_plot_style(fig)
         mutation_types_plot = _plot_div(fig)
 
-    summary_html = f"""
-    <div class=\"toc card\">
-        <h3>Table of contents</h3>
-        <ol>
-            <li><a href=\"#summary\">Summary</a></li>
-            <li><a href=\"#root-to-tip\">Root-to-tip regression</a></li>
-            <li><a href=\"#convergent\">Convergent mutations</a></li>
-            <li><a href=\"#reversions\">Reversions</a></li>
-            <li><a href=\"#immune\">Signatures of human immune editing</a></li>
-            <li><a href=\"#mutation-types\">Flagged mutation types</a></li>
-        </ol>
-    </div>
-    <div id=\"summary\" class=\"card\">
-        <h3>1. Summary</h3>
-        <p>Tips: {len(tip_names)}</p>
-        <p>Tree height: {getattr(my_tree, 'treeHeight', 'n/a')}</p>
-        <p>Y span: {getattr(my_tree, 'ySpan', 'n/a')}</p>
-    </div>
-    <div id=\"root-to-tip\" class=\"card\">
-        <h3>2. Root-to-tip regression</h3>
-        {root_to_tip_plot}
-    </div>
-    <div id=\"convergent\" class=\"card\">
-        <h3>3. Convergent mutations</h3>
-        {convergent_table}
-    </div>
-    <div id=\"reversions\" class=\"card\">
-        <h3>4. Reversions</h3>
-        {reversion_table}
-    </div>
-    <div id=\"immune\" class=\"card\">
-        <h3>5. Signatures of human immune editing</h3>
-        {immune_editing_table}
-    </div>
-    <div id=\"mutation-types\" class=\"card\">
-        <h3>6. Flagged mutation types</h3>
-        {mutation_types_plot}
-    </div>
-    <div class=\"card\">
-        <h3>Datafiles</h3>
-        <p>Treefile: {os.path.basename(treefile)}</p>
-        <p>Flags CSV: {os.path.basename(flags_csv) if flags_csv else "None"}</p>
-        <p>Output directory: {os.path.basename(outdir) if outdir else ""}</p>
-    </div>
-    <div id=\"report-metadata\" class=\"card\">
-        <h3>Report metadata</h3>
-        <p>Generated: {generated_stamp}</p>
-        <p>Raccoon version: {raccoon_version}</p>
-        <p>Python: {sys.version.split()[0]}</p>
-        <p>Platform: {platform.system()} {platform.release()}</p>
-    </div>
-    """
-
-    plots_html = []
-
     outpath = os.path.join(outdir, "tree-qc_report.html")
-    _write_html(outpath, "Raccoon tree-qc report", summary_html, plots_html, "tree_qc.html")
+    context = {
+        "summary": {
+            "tips": len(tip_names),
+            "tree_height": getattr(my_tree, "treeHeight", "n/a"),
+            "y_span": getattr(my_tree, "ySpan", "n/a"),
+        },
+        "root_to_tip_plot_html": root_to_tip_plot,
+        "convergent_table": convergent_table,
+        "reversion_table": reversion_table,
+        "immune_editing_table": immune_editing_table,
+        "mutation_types_plot_html": mutation_types_plot,
+        "datafiles": {
+            "treefile": os.path.basename(treefile),
+            "flags_csv": os.path.basename(flags_csv) if flags_csv else "None",
+            "output_dir": os.path.basename(outdir) if outdir else "",
+        },
+        "report_metadata": {
+            "generated_stamp": generated_stamp,
+            "raccoon_version": raccoon_version,
+            "python_version": sys.version.split()[0],
+            "platform": f"{platform.system()} {platform.release()}",
+        },
+        "generated_stamp": generated_stamp,
+    }
+    _write_html(outpath, "Raccoon tree-qc report", "tree_qc.html", context)
     return outpath

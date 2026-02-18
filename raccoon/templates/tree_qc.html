@@ -1,5 +1,132 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="section">{{ summary_html | safe }}</div>
-  <div class="section">{{ plots_html | safe }}</div>
+  <div class="section">
+    <div class="toc card">
+      <h3>Table of contents</h3>
+      <ol>
+        <li><a href="#summary">Summary</a></li>
+        <li><a href="#root-to-tip">Root-to-tip regression</a></li>
+        <li><a href="#convergent">Convergent mutations</a></li>
+        <li><a href="#reversions">Reversions</a></li>
+        <li><a href="#immune">Signatures of human immune editing</a></li>
+        <li><a href="#mutation-types">Flagged mutation types</a></li>
+      </ol>
+    </div>
+
+    <div id="summary" class="card">
+      <h3>1. Summary</h3>
+      <p>Tips: {{ summary.tips }}</p>
+      <p>Tree height: {{ summary.tree_height }}</p>
+      <p>Y span: {{ summary.y_span }}</p>
+    </div>
+
+    <div id="root-to-tip" class="card">
+      <h3>2. Root-to-tip regression</h3>
+      {{ root_to_tip_plot_html | safe }}
+    </div>
+
+    <div id="convergent" class="card">
+      <h3>3. Convergent mutations</h3>
+      {% if convergent_table %}
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in convergent_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in convergent_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No convergent mutations flagged.</p>
+      {% endif %}
+    </div>
+
+    <div id="reversions" class="card">
+      <h3>4. Reversions</h3>
+      {% if reversion_table %}
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in reversion_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in reversion_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No reversions flagged.</p>
+      {% endif %}
+    </div>
+
+    <div id="immune" class="card">
+      <h3>5. Signatures of human immune editing</h3>
+      {% if immune_editing_table %}
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in immune_editing_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in immune_editing_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No immune editing signatures flagged.</p>
+      {% endif %}
+    </div>
+
+    <div id="mutation-types" class="card">
+      <h3>6. Flagged mutation types</h3>
+      {{ mutation_types_plot_html | safe }}
+    </div>
+
+    <div class="card">
+      <h3>Datafiles</h3>
+      <p>Treefile: {{ datafiles.treefile }}</p>
+      <p>Flags CSV: {{ datafiles.flags_csv }}</p>
+      <p>Output directory: {{ datafiles.output_dir }}</p>
+    </div>
+
+    <div id="report-metadata" class="card">
+      <h3>Report metadata</h3>
+      <p>Generated: {{ report_metadata.generated_stamp }}</p>
+      <p>Raccoon version: {{ report_metadata.raccoon_version }}</p>
+      <p>Python: {{ report_metadata.python_version }}</p>
+      <p>Platform: {{ report_metadata.platform }}</p>
+    </div>
+  </div>
 {% endblock %}
