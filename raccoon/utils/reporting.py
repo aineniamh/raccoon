@@ -16,6 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.offline import plot
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .reconstruction_functions import load_tree, ensure_node_label
 
@@ -36,7 +37,17 @@ def _logo_html(data_uri: str, css_class: str, alt_text: str) -> str:
     return f'<div class="{css_class}" aria-label="{alt_text}"></div>'
 
 
-def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[str]) -> None:
+def _render_html(template_name: str, context: Dict[str, Any]) -> str:
+    templates_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates"))
+    env = Environment(
+        loader=FileSystemLoader(templates_dir),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    template = env.get_template(template_name)
+    return template.render(**context)
+
+
+def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[str], template_name: str) -> None:
     plots = "\n".join(plots_html)
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     raccoon_logo = _svg_data_uri(os.path.join(base_dir, "docs", "raccoon_logo.svg"))
@@ -44,77 +55,16 @@ def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[st
     raccoon_logo_html = _logo_html(raccoon_logo, "logo", "Raccoon logo")
     artic_logo_html = _logo_html(artic_logo, "logo-small", "ARTIC Network logo")
     generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    html = f"""<!doctype html>
-<html lang=\"en\">
-<head>
-  <meta charset=\"utf-8\">
-  <title>{title}</title>
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-    <link rel=\"icon\" href=\"{raccoon_logo}\">
-    <link rel=\"stylesheet\" href=\"https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css\">
-    <style>
-        body {{ font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 300; margin: 20px; }}
-    h1 {{ margin-bottom: 0.2rem; }}
-    .meta {{ color: #666; margin-bottom: 1rem; }}
-    .section {{ margin: 1.5rem 0; }}
-        .header {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
-        .header-left {{ display: flex; align-items: center; gap: 12px; }}
-        .logo {{ height: 48px; width: auto; }}
-        .logo-small {{ height: 48px; width: auto; }}
-    .card {{ border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }}
-        h1, h2, h3, h4 {{ font-weight: 600; }}
-    table {{ border-collapse: collapse; width: 100%; }}
-    th, td {{ border: 1px solid #eee; padding: 6px 8px; text-align: left; }}
-    th {{ background: #e6e1ee; }}
-        tbody tr.filtered {{ background: #f2d6d6 !important; }}
-        details {{ border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin: 6px 0; }}
-        summary {{ cursor: pointer; font-weight: 600; }}
-        .toc a {{ text-decoration: none; color: #2f5f6b; }}
-        .footer {{ margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee; color: #666; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }}
-        .metadata-block {{ margin: 10px 0; }}
-        .metadata-title {{ font-weight: 600; margin: 6px 0; }}
-        .banner {{ background: #f6f3f9; border: 1px solid #e2dbea; padding: 10px 12px; border-radius: 8px; }}
-        .caption {{ color: #666; font-size: 0.9rem; margin-top: 6px; }}
-        .table-wrap {{ overflow-x: auto; }}
-        .help-tip {{ color: #6a6a6a; font-size: 0.9rem; margin-top: 6px; }}
-        @media print {{
-            .dataTables_filter, .dataTables_length, .dataTables_info, .dataTables_paginate {{ display: none !important; }}
-            details summary {{ list-style: none; }}
-            details {{ border: none; padding: 0; }}
-        }}
-  </style>
-    <script src=\"https://code.jquery.com/jquery-3.7.1.min.js\"></script>
-    <script src=\"https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js\"></script>
-</head>
-<body>
-    <div class=\"header\">
-        <div class=\"header-left\">
-            {raccoon_logo_html}
-            <div>
-                <h1>{title}</h1>
-                <div class=\"meta\">Generated {generated_stamp}</div>
-            </div>
-        </div>
-        {artic_logo_html}
-    </div>
-    <div class=\"section\">{summary_html}</div>
-    <div class=\"section\">{plots}</div>
-    <div class=\"footer\">
-        <div><strong>Raccoon</strong> — Rigorous Alignment Curation: Cleanup Of Outliers and Noise</div>
-        <div>Author: Áine O'Toole</div>
-    </div>
-        <script>
-            $(document).ready(function () {{
-                $('table.datatable').DataTable({{
-                    paging: false,
-                    info: false,
-                    autoWidth: false
-                }});
-            }});
-        </script>
-</body>
-</html>"""
+    context = {
+        "title": title,
+        "summary_html": summary_html,
+        "plots_html": plots,
+        "generated_stamp": generated_stamp,
+        "raccoon_logo": raccoon_logo,
+        "raccoon_logo_html": raccoon_logo_html,
+        "artic_logo_html": artic_logo_html,
+    }
+    html = _render_html(template_name, context)
     with open(outfile, "w") as handle:
         handle.write(html)
 
@@ -556,7 +506,7 @@ def generate_combine_report(
     plots_html = []
 
     outpath = os.path.join(outdir, "seq-qc_report.html")
-    _write_html(outpath, "Raccoon seq-qc report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon seq-qc report", summary_html, plots_html, "seq_qc.html")
     return outpath
 
 
@@ -811,7 +761,7 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
     plots_html = []
 
     outpath = os.path.join(outdir, "aln-qc_report.html")
-    _write_html(outpath, "Raccoon aln-qc report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon aln-qc report", summary_html, plots_html, "aln_qc.html")
     return outpath
 
 
@@ -1008,5 +958,5 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
     plots_html = []
 
     outpath = os.path.join(outdir, "tree-qc_report.html")
-    _write_html(outpath, "Raccoon tree-qc report", summary_html, plots_html)
+    _write_html(outpath, "Raccoon tree-qc report", summary_html, plots_html, "tree_qc.html")
     return outpath

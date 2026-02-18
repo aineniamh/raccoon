@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="section">{{ summary_html | safe }}</div>
+  <div class="section">{{ plots_html | safe }}</div>
+{% endblock %}

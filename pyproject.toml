@@ -21,7 +21,8 @@ dependencies = [
     "matplotlib>=3.3.1",
     'baltic',
     'seaborn',
-    'plotly>=5.0.0'
+    'plotly>=5.0.0',
+    'jinja2>=3.1.0'
 ]
 
 [project.urls]
@@ -33,6 +34,9 @@ raccoon = "raccoon.command:main"
 [tool.setuptools]
 packages = ["raccoon", "raccoon.commands", "raccoon.utils"]
 include-package-data = true
+
+[tool.setuptools.package-data]
+raccoon = ["templates/**/*.html"]
 
 [tool.setuptools.dynamic]
 version = {attr = "raccoon.__version__"}
