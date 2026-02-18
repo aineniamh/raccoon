@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import math
 import csv
 import os
 import platform
@@ -12,6 +13,7 @@ from typing import Iterable, Optional, Dict, Any, List
 from Bio import SeqIO
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.offline import plot
 
 from .reconstruction_functions import load_tree, ensure_node_label
@@ -47,6 +49,7 @@ def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[st
   <meta charset=\"utf-8\">
   <title>{title}</title>
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+    <link rel=\"icon\" href=\"{raccoon_logo}\">
     <link rel=\"stylesheet\" href=\"https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css\">
     <style>
         body {{ font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 300; margin: 20px; }}
@@ -73,6 +76,7 @@ def _write_html(outfile: str, title: str, summary_html: str, plots_html: List[st
         .banner {{ background: #f6f3f9; border: 1px solid #e2dbea; padding: 10px 12px; border-radius: 8px; }}
         .caption {{ color: #666; font-size: 0.9rem; margin-top: 6px; }}
         .table-wrap {{ overflow-x: auto; }}
+        .help-tip {{ color: #6a6a6a; font-size: 0.9rem; margin-top: 6px; }}
         @media print {{
             .dataTables_filter, .dataTables_length, .dataTables_info, .dataTables_paginate {{ display: none !important; }}
             details summary {{ list-style: none; }}
@@ -134,8 +138,14 @@ def _apply_plot_style(fig: go.Figure) -> None:
     fig.update_yaxes(showline=True, linecolor="black", linewidth=1, gridcolor="rgba(0,0,0,0.05)")
 
 
-def _plot_div(fig: go.Figure) -> str:
-    return plot(fig, include_plotlyjs="cdn", output_type="div", config={"displayModeBar": False})
+def _plot_div(fig: go.Figure, div_id: Optional[str] = None) -> str:
+    return pio.to_html(
+        fig,
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"displayModeBar": False},
+        div_id=div_id,
+    )
 
 
 def _safe_mean(values: Iterable[float]) -> float:
@@ -380,6 +390,7 @@ def generate_combine_report(
             xaxis_title="Sequence length (bp)",
             yaxis_title="Count",
             showlegend=False,
+            dragmode=False,
         )
         if min_length is not None:
             fig.add_vline(
@@ -436,30 +447,26 @@ def generate_combine_report(
     cmd_line = " ".join(cmd_parts)
 
     summary_html = f"""
-        <div class=\"grid\">
-            <div class=\"card\">
-                <h3>Executive summary</h3>
-                <p>Total sequences: {total_sequences}</p>
-                <p>Filtered: {filtered_count}</p>
-                <p>Unique locations: {header_stats.get("locations", 0)}</p>
-                <p>Date range: {header_stats.get("dates", "")}</p>
-            </div>
-            <div class=\"card\">
-                <h3>Filters</h3>
-                <p>Command: <code>{cmd_line}</code></p>
-                <p>Filters: {filter_summary_text}</p>
-            </div>
-        </div>
         <div class=\"toc card\">
             <h3>Table of contents</h3>
             <ol>
-            <li><a href=\"#inputs\">Inputs & sequences</a></li>
-            <li><a href=\"#lengths\">Sequence length description</a></li>
-            <li><a href=\"#metadata\">Metadata</a></li>
-            <li><a href=\"#dataset\">Dataset description</a></li>
+                <li><a href=\"#summary\">Summary</a></li>
+                <li><a href=\"#inputs\">Inputs & sequences</a></li>
+                <li><a href=\"#lengths\">Sequence length description</a></li>
+                <li><a href=\"#metadata\">Metadata</a></li>
+                <li><a href=\"#dataset\">Dataset description</a></li>
                 <li><a href=\"#final\">Final IDs</a></li>
                 <li><a href=\"#report-metadata\">Report metadata</a></li>
             </ol>
+        </div>
+        <div id=\"summary\" class=\"card\">
+            <h3>Summary</h3>
+            <p>Total sequences: {total_sequences}</p>
+            <p>Filtered: {filtered_count}</p>
+            <p>Unique locations: {header_stats.get("locations", 0)}</p>
+            <p>Date range: {header_stats.get("dates", "")}</p>
+            <p>Command: <code>{cmd_line}</code></p>
+            <p>Filters: {filter_summary_text}</p>
         </div>
         <div id=\"inputs\" class=\"card\">
             <h3>1. Inputs & sequences</h3>
@@ -542,7 +549,7 @@ def generate_combine_report(
 
     plots_html = []
 
-    outpath = os.path.join(outdir, "combine_report.html")
+    outpath = os.path.join(outdir, "seq-qc_report.html")
     _write_html(outpath, "Raccoon seq-qc report", summary_html, plots_html)
     return outpath
 
@@ -551,34 +558,117 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
     lengths = []
     n_contents = []
     completeness = []
+    seq_ids = []
+    seq_strings = []
     for rec in SeqIO.parse(alignment_path, "fasta"):
         seq = str(rec.seq)
         lengths.append(len(seq))
         n_contents.append(_n_content(seq))
+        seq_ids.append(rec.id)
+        seq_strings.append(seq)
         if seq:
             valid = sum(1 for c in seq.upper() if c not in ["N", "-"])
             completeness.append(valid / len(seq))
 
     aln_len = _safe_max(lengths)
-    summary_html = f"""
-    <div class=\"grid\">
-      <div class=\"card\">
-        <h3>Alignment summary</h3>
-        <p>Sequences: {len(lengths)}</p>
-        <p>Alignment length: {aln_len}</p>
-        <p>Mean N content: {round(_safe_mean(n_contents), 4)}</p>
-        <p>Mean completeness: {round(_safe_mean(completeness), 4)}</p>
-      </div>
-    </div>
-    """
-
-    plots_html = []
-    if n_contents:
-        fig = go.Figure(data=[go.Histogram(x=n_contents, nbinsx=20)])
-        fig.update_layout(title="N content distribution", xaxis_title="N content", yaxis_title="Count")
+    generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        from raccoon import __version__ as raccoon_version
+    except Exception:
+        raccoon_version = "unknown"
+    site_to_ids: Dict[int, List[str]] = {}
+    if mask_file and os.path.exists(mask_file):
+        try:
+            with open(mask_file, "r") as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    site = row.get("Name") or row.get("site")
+                    present_in = row.get("present_in", "")
+                    if site is None:
+                        continue
+                    try:
+                        site_int = int(site)
+                    except Exception:
+                        continue
+                    if site_int < 1 or (aln_len and site_int > aln_len):
+                        continue
+                    ids = [v.strip() for v in str(present_in).split(",") if v.strip()]
+                    if ids:
+                        site_to_ids[site_int] = ids
+        except Exception:
+            site_to_ids = {}
+    sites_table_html = ""
+    if mask_file and os.path.exists(mask_file):
+        site_rows = []
+        with open(mask_file, "r") as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                site_rows.append(row)
+        if site_rows:
+            headers = list(site_rows[0].keys())
+            head_html = "".join([f"<th>{h}</th>" for h in headers])
+            body_html = ""
+            for row in site_rows:
+                body_html += "<tr>" + "".join([f"<td>{row.get(h, '')}</td>" for h in headers]) + "</tr>"
+            sites_table_html = f"""
+            <div class=\"table-wrap\"><table class=\"datatable\">
+                <thead><tr>{head_html}</tr></thead>
+                <tbody>{body_html}</tbody>
+            </table></div>
+            """
+    n_blocks_plot_html = ""
+    if seq_strings and aln_len:
+        z = []
+        text = []
+        y_positions = list(range(len(seq_ids)))
+        for seq in seq_strings:
+            row = [1 if c.upper() == "N" else 0 for c in seq]
+            if len(row) < aln_len:
+                row.extend([0] * (aln_len - len(row)))
+            z.append(row[:aln_len])
+            text.append(list(seq[:aln_len]))
+        fig = go.Figure(data=[go.Heatmap(
+            z=z,
+            x=list(range(1, aln_len + 1)),
+            y=y_positions,
+            colorscale=[[0, "#ffffff"], [1, "#bfc3c8"]],
+            showscale=False,
+            text=text,
+            texttemplate="",
+            textfont=dict(size=8),
+            hovertemplate="ID: %{customdata}<br>Position: %{x}<br>Base: %{text}<br>N: %{z}<extra></extra>",
+            customdata=[[seq_ids[i]] * aln_len for i in range(len(seq_ids))],
+        )])
+        shapes = []
+        for i in range(len(seq_ids)):
+            if i % 2 == 1:
+                shapes.append(dict(
+                    type="rect",
+                    xref="x",
+                    yref="y",
+                    x0=0.5,
+                    x1=aln_len + 0.5,
+                    y0=i - 0.5,
+                    y1=i + 0.5,
+                    fillcolor="#ede8f3",
+                    opacity=0.4,
+                    line_width=0,
+                    layer="below",
+                ))
+        height = max(400, len(seq_ids) * 14)
+        tick_size = 12 if len(seq_ids) <= 40 else 8
+        fig.update_layout(
+            xaxis_title="Position (bp)",
+            yaxis_title="Sequence",
+            yaxis=dict(tickmode="array", tickvals=y_positions, ticktext=seq_ids, tickfont=dict(size=tick_size)),
+            showlegend=False,
+            shapes=shapes,
+            height=height,
+        )
         _apply_plot_style(fig)
-        plots_html.append(_plot_div(fig))
+        n_blocks_plot_html = _plot_div(fig, div_id="n-blocks-plot")
 
+    flagged_plot_html = ""
     if mask_file and os.path.exists(mask_file):
         site_rows = []
         with open(mask_file, "r") as handle:
@@ -601,13 +691,119 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
                     mode="markers",
                     name=pretty,
                     marker=dict(size=8),
+                    customdata=[
+                        "many" if len(site_to_ids.get(int(site), [])) > 5
+                        else "<br>".join(site_to_ids.get(int(site), []))
+                        for site in subset["site"]
+                    ],
+                    hovertemplate="Site: %{x}<br>Category: %{y}<br>IDs: %{customdata}<extra></extra>",
                 ))
-            fig.update_layout(title="Flagged sites by category", xaxis_title="Site", yaxis_title="Category")
+            fig.update_layout(xaxis_title="Position (bp)", yaxis_title="Category")
             fig.update_xaxes(range=[0, aln_len])
             _apply_plot_style(fig)
-            plots_html.append(_plot_div(fig))
+            flagged_plot_html = _plot_div(fig)
 
-    outpath = os.path.join(outdir, "alignment_report.html")
+    diversity_plot_html = ""
+    if seq_strings and aln_len:
+        diversities = []
+        for pos in range(aln_len):
+            counts = {}
+            total = 0
+            for seq in seq_strings:
+                if pos >= len(seq):
+                    continue
+                base = seq[pos].upper()
+                if base in ["-", "N"]:
+                    continue
+                counts[base] = counts.get(base, 0) + 1
+                total += 1
+            if total == 0:
+                diversities.append(0.0)
+            else:
+                h = 0.0
+                for c in counts.values():
+                    p = c / total
+                    h -= p * math.log2(p)
+                diversities.append(h)
+        fig = go.Figure(data=[go.Scatter(x=list(range(1, aln_len + 1)), y=diversities, mode="lines")])
+        fig.update_layout(xaxis_title="Position (bp)", yaxis_title="Shannon diversity", showlegend=False)
+        _apply_plot_style(fig)
+        diversity_plot_html = _plot_div(fig)
+
+    summary_html = f"""
+    <div class=\"toc card\">
+        <h3>Table of contents</h3>
+        <ol>
+            <li><a href=\"#summary\">Summary</a></li>
+            <li><a href=\"#n-blocks\">Alignment N-content</a></li>
+            <li><a href=\"#reported\">Flagged sites</a></li>
+            <li><a href=\"#flagged\">Flagged sites by category</a></li>
+            <li><a href=\"#diversity\">Per-site diversity</a></li>
+        </ol>
+    </div>
+    <div id=\"summary\" class=\"card\">
+        <h3>1. Summary</h3>
+        <p>Sequences: {len(lengths)}</p>
+        <p>Alignment length: {aln_len}</p>
+        <p>Mean N content: {round(_safe_mean(n_contents), 4)}</p>
+        <p>Mean completeness: {round(_safe_mean(completeness), 4)}</p>
+    </div>
+    <div id=\"n-blocks\" class=\"card\">
+        <h3>2. Alignment N-content</h3>
+        {n_blocks_plot_html if n_blocks_plot_html else "<p>No alignment data available for plotting.</p>"}
+        <p class=\"caption\">Grey blocks represent N positions along the alignment for each sequence.</p>
+    </div>
+        <script>
+            (function () {{
+                var plot = document.getElementById('n-blocks-plot');
+                if (!plot || !window.Plotly) return;
+                function applyLabels(range) {{
+                    var show = false;
+                    if (range && range[0] !== undefined && range[1] !== undefined) {{
+                        show = (range[1] - range[0]) <= 100;
+                    }}
+                    var template = show ? "%{text}" : "";
+                    Plotly.restyle(plot, {{texttemplate: template}});
+                }}
+                plot.on('plotly_relayout', function (eventData) {{
+                    if (eventData['xaxis.range[0]'] !== undefined && eventData['xaxis.range[1]'] !== undefined) {{
+                        applyLabels([eventData['xaxis.range[0]'], eventData['xaxis.range[1]']]);
+                    }} else if (eventData['xaxis.autorange']) {{
+                        applyLabels(null);
+                    }}
+                }});
+            }})();
+        </script>
+    <div id=\"reported\" class=\"card\">
+        <h3>3. Flagged sites</h3>
+        {sites_table_html if sites_table_html else "<p>No reported sites table available.</p>"}
+    </div>
+    <div id=\"flagged\" class=\"card\">
+        <h3>4. Flagged sites by category</h3>
+        {flagged_plot_html if flagged_plot_html else "<p>No flagged site plot available.</p>"}
+    </div>
+    <div id=\"diversity\" class=\"card\">
+        <h3>5. Per-site diversity</h3>
+        {diversity_plot_html if diversity_plot_html else "<p>No diversity plot available.</p>"}
+    </div>
+    <div class=\"card\">
+        <h3>Datafiles</h3>
+        <p>Input alignment: {os.path.basename(alignment_path)}</p>
+        <p>Mask file: {os.path.basename(mask_file) if mask_file else "None"}</p>
+        <p>Output directory: {os.path.basename(outdir) if outdir else ""}</p>
+    </div>
+    <div id=\"report-metadata\" class=\"card\">
+        <h3>Report metadata</h3>
+        <p>Generated: {generated_stamp}</p>
+        <p>Raccoon version: {raccoon_version}</p>
+        <p>Python: {sys.version.split()[0]}</p>
+        <p>Platform: {platform.system()} {platform.release()}</p>
+    </div>
+    """
+
+    plots_html = []
+
+    outpath = os.path.join(outdir, "aln-qc_report.html")
     _write_html(outpath, "Raccoon aln-qc report", summary_html, plots_html)
     return outpath
 
@@ -624,33 +820,55 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
                 tip_heights.append(node.height)
 
     summary_html = f"""
-    <div class=\"grid\">
-      <div class=\"card\">
-        <h3>Tree summary</h3>
+    <div class=\"toc card\">
+        <h3>Table of contents</h3>
+        <ol>
+            <li><a href=\"#summary\">Summary</a></li>
+            <li><a href=\"#root-to-tip\">Root-to-tip distances</a></li>
+            <li><a href=\"#mutation-types\">Flagged mutation types</a></li>
+        </ol>
+    </div>
+    <div id=\"summary\" class=\"card\">
+        <h3>1. Summary</h3>
         <p>Tips: {len(tip_names)}</p>
         <p>Tree height: {getattr(my_tree, 'treeHeight', 'n/a')}</p>
         <p>Y span: {getattr(my_tree, 'ySpan', 'n/a')}</p>
-      </div>
+    </div>
+    <div id=\"root-to-tip\" class=\"card\">
+        <h3>2. Root-to-tip distances</h3>
+        {{root_to_tip_plot}}
+    </div>
+    <div id=\"mutation-types\" class=\"card\">
+        <h3>3. Flagged mutation types</h3>
+        {{mutation_types_plot}}
     </div>
     """
 
-    plots_html = []
+    root_to_tip_plot = "<p>No root-to-tip distances available.</p>"
     if tip_heights:
         fig = go.Figure(data=[go.Histogram(x=tip_heights, nbinsx=20)])
-        fig.update_layout(title="Root-to-tip distances", xaxis_title="Distance", yaxis_title="Count")
+        fig.update_layout(xaxis_title="Distance", yaxis_title="Count", showlegend=False)
         _apply_plot_style(fig)
-        plots_html.append(_plot_div(fig))
+        root_to_tip_plot = _plot_div(fig)
 
+    mutation_types_plot = "<p>No mutation types available.</p>"
     if flags_csv and os.path.exists(flags_csv):
         flags = pd.read_csv(flags_csv)
         if not flags.empty and "mutation_type" in flags:
             counts = flags["mutation_type"].value_counts().reset_index()
             counts.columns = ["mutation_type", "count"]
             fig = go.Figure(data=[go.Bar(x=counts["mutation_type"], y=counts["count"])])
-            fig.update_layout(title="Flagged mutation types", xaxis_title="Type", yaxis_title="Count")
+            fig.update_layout(xaxis_title="Type", yaxis_title="Count", showlegend=False)
             _apply_plot_style(fig)
-            plots_html.append(_plot_div(fig))
+            mutation_types_plot = _plot_div(fig)
 
-    outpath = os.path.join(outdir, "phylo_report.html")
+    summary_html = summary_html.format(
+        root_to_tip_plot=root_to_tip_plot,
+        mutation_types_plot=mutation_types_plot,
+    )
+
+    plots_html = []
+
+    outpath = os.path.join(outdir, "tree-qc_report.html")
     _write_html(outpath, "Raccoon tree-qc report", summary_html, plots_html)
     return outpath
