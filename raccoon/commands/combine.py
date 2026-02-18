@@ -59,6 +59,17 @@ def n_content(seq: str) -> float:
     return seq.count("N") / len(seq)
 
 
+def parse_record_id(record_id: str, delimiter: str, field_index: int) -> str:
+    if field_index < 0:
+        return record_id
+    parts = record_id.split(delimiter) if delimiter else [record_id]
+    if not parts:
+        return record_id
+    if field_index >= len(parts):
+        return record_id
+    return parts[field_index] or record_id
+
+
 def main(args):
     """Combine fasta files into a single upper-case, unwrapped FASTA."""
     if not hasattr(args, "inputs"):
@@ -83,6 +94,8 @@ def main(args):
         metadata_date_field = getattr(args, "metadata_date_field", "date")
         metadata_delimiter = getattr(args, "metadata_delimiter", ",")
         header_separator = getattr(args, "header_separator", "|")
+        id_delimiter = getattr(args, "id_delimiter", "|")
+        id_field = getattr(args, "id_field", 0)
         min_length = getattr(args, "min_length", None)
         max_n_content = getattr(args, "max_n_content", None)
 
@@ -114,19 +127,20 @@ def main(args):
                     if max_n_content is not None and n_prop > max_n_content:
                         filtered_count += 1
                         continue
+                    parsed_id = parse_record_id(rec.id, id_delimiter, id_field)
                     header = rec.id
                     if metadata_map is not None:
-                        row = metadata_map.get(rec.id)
+                        row = metadata_map.get(parsed_id)
                         if row:
                             header = format_header(
-                                rec.id,
+                                parsed_id,
                                 row,
                                 metadata_location_field,
                                 metadata_date_field,
                                 header_separator,
                             )
                         else:
-                            logging.warning("No metadata row found for %s", rec.id)
+                            logging.warning("No metadata row found for %s", parsed_id)
                     write_fasta_record(out_handle, header, seq)
                     kept_count += 1
         finally:
