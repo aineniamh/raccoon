@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import math
+import numpy as np
 import csv
 import os
 import platform
@@ -446,6 +447,11 @@ def generate_combine_report(
         cmd_parts.extend(["--max-n-content", str(max_n_content)])
     cmd_line = " ".join(cmd_parts)
 
+    generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        from raccoon import __version__ as raccoon_version
+    except Exception:
+        raccoon_version = "unknown"
     summary_html = f"""
         <div class=\"toc card\">
             <h3>Table of contents</h3>
@@ -727,6 +733,7 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
                 diversities.append(h)
         fig = go.Figure(data=[go.Scatter(x=list(range(1, aln_len + 1)), y=diversities, mode="lines")])
         fig.update_layout(xaxis_title="Position (bp)", yaxis_title="Shannon diversity", showlegend=False)
+        fig.update_yaxes(range=[0, max(diversities) if diversities else 0])
         _apply_plot_style(fig)
         diversity_plot_html = _plot_div(fig)
 
@@ -812,19 +819,148 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
     my_tree = load_tree(treefile, tree_format=tree_format)
     tip_names = []
     tip_heights = []
+    tip_dates = []
     for node in my_tree.Objects:
         if node.branchType == 'leaf':
             label = ensure_node_label(node)
             if label:
                 tip_names.append(label)
                 tip_heights.append(node.height)
+                parts = label.split("|")
+                date_val = None
+                if len(parts) >= 4:
+                    date_val = parts[-1]
+                elif len(parts) >= 3:
+                    date_val = parts[-1]
+                tip_dates.append(date_val)
+
+    flags_df = None
+    if flags_csv and os.path.exists(flags_csv):
+        try:
+            flags_df = pd.read_csv(flags_csv)
+        except Exception:
+            flags_df = None
+
+    def _build_table(df: pd.DataFrame) -> str:
+        if df is None or df.empty:
+            return ""
+        headers = list(df.columns)
+        head_html = "".join([f"<th>{h}</th>" for h in headers])
+        body_html = ""
+        for _, row in df.iterrows():
+            body_html += "<tr>" + "".join([f"<td>{row.get(h, '')}</td>" for h in headers]) + "</tr>"
+        return f"<div class=\"table-wrap\"><table class=\"datatable\"><thead><tr>{head_html}</tr></thead><tbody>{body_html}</tbody></table></div>"
+
+    convergent_table = "<p>No convergent mutations flagged.</p>"
+    reversion_table = "<p>No reversions flagged.</p>"
+    immune_editing_table = "<p>No immune editing signatures flagged.</p>"
+    if flags_df is not None and not flags_df.empty and "mutation_type" in flags_df.columns:
+        convergent = flags_df[flags_df["mutation_type"].str.contains("convergent", case=False, na=False)]
+        if not convergent.empty:
+            convergent_table = _build_table(convergent)
+        reversion = flags_df[flags_df["mutation_type"].str.contains("reversion", case=False, na=False)]
+        if not reversion.empty:
+            reversion_table = _build_table(reversion)
+        immune = flags_df[flags_df["mutation_type"].str.contains("adar|apobec", case=False, na=False)]
+        if not immune.empty:
+            immune_editing_table = _build_table(immune)
+
+    generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        from raccoon import __version__ as raccoon_version
+    except Exception:
+        raccoon_version = "unknown"
+
+    root_to_tip_plot = "<p>No root-to-tip distances available.</p>"
+    if tip_heights and tip_dates:
+        date_series = pd.to_datetime(pd.Series(tip_dates), errors="coerce")
+        mask = date_series.notna()
+        if mask.any():
+            x_dates = date_series[mask]
+            y_heights = np.array(tip_heights)[mask.values]
+            x_num = x_dates.map(pd.Timestamp.toordinal).astype(float).values
+            if len(x_num) >= 2:
+                slope, intercept = np.polyfit(x_num, y_heights, 1)
+                y_hat = slope * x_num + intercept
+                resid = y_heights - y_hat
+                n = len(x_num)
+                s_err = np.sqrt(np.sum(resid ** 2) / max(n - 2, 1))
+                x_mean = np.mean(x_num)
+                s_xx = np.sum((x_num - x_mean) ** 2) or 1.0
+                ci = 3.0 * s_err * np.sqrt(1 / n + (x_num - x_mean) ** 2 / s_xx)
+                upper = y_hat + ci
+                lower = y_hat - ci
+                outside = (y_heights > upper) | (y_heights < lower)
+                order = np.argsort(x_num)
+                x_dates = x_dates.iloc[order]
+                y_heights = y_heights[order]
+                y_hat = y_hat[order]
+                upper = upper[order]
+                lower = lower[order]
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=y_heights,
+                    mode="markers",
+                    marker=dict(color="#4BA3A8", size=8),
+                    text=[tip_names[i] for i, m in enumerate(mask.values) if m],
+                    hovertemplate="%{text}<br>Date: %{x|%Y-%m-%d}<br>Distance: %{y:.4f}<extra></extra>",
+                    name="Tips",
+                ))
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=y_hat,
+                    mode="lines",
+                    line=dict(color="#7A6BB1"),
+                    hoverinfo="skip",
+                    name="Regression",
+                ))
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=upper,
+                    mode="lines",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    hoverinfo="skip",
+                    showlegend=False,
+                ))
+                fig.add_trace(go.Scatter(
+                    x=x_dates,
+                    y=lower,
+                    mode="lines",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    fill="tonexty",
+                    fillcolor="rgba(182,170,201,0.25)",
+                    hoverinfo="skip",
+                    showlegend=False,
+                ))
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Root-to-tip distance",
+                    yaxis_tickformat=".1e",
+                    showlegend=False,
+                )
+                _apply_plot_style(fig)
+                root_to_tip_plot = _plot_div(fig)
+
+    mutation_types_plot = "<p>No mutation types available.</p>"
+    if flags_df is not None and not flags_df.empty and "mutation_type" in flags_df:
+        counts = flags_df["mutation_type"].value_counts().reset_index()
+        counts.columns = ["mutation_type", "count"]
+        fig = go.Figure(data=[go.Bar(x=counts["mutation_type"], y=counts["count"])])
+        fig.update_layout(xaxis_title="Type", yaxis_title="Count", showlegend=False)
+        _apply_plot_style(fig)
+        mutation_types_plot = _plot_div(fig)
 
     summary_html = f"""
     <div class=\"toc card\">
         <h3>Table of contents</h3>
         <ol>
             <li><a href=\"#summary\">Summary</a></li>
-            <li><a href=\"#root-to-tip\">Root-to-tip distances</a></li>
+            <li><a href=\"#root-to-tip\">Root-to-tip regression</a></li>
+            <li><a href=\"#convergent\">Convergent mutations</a></li>
+            <li><a href=\"#reversions\">Reversions</a></li>
+            <li><a href=\"#immune\">Signatures of human immune editing</a></li>
             <li><a href=\"#mutation-types\">Flagged mutation types</a></li>
         </ol>
     </div>
@@ -835,37 +971,39 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
         <p>Y span: {getattr(my_tree, 'ySpan', 'n/a')}</p>
     </div>
     <div id=\"root-to-tip\" class=\"card\">
-        <h3>2. Root-to-tip distances</h3>
-        {{root_to_tip_plot}}
+        <h3>2. Root-to-tip regression</h3>
+        {root_to_tip_plot}
+    </div>
+    <div id=\"convergent\" class=\"card\">
+        <h3>3. Convergent mutations</h3>
+        {convergent_table}
+    </div>
+    <div id=\"reversions\" class=\"card\">
+        <h3>4. Reversions</h3>
+        {reversion_table}
+    </div>
+    <div id=\"immune\" class=\"card\">
+        <h3>5. Signatures of human immune editing</h3>
+        {immune_editing_table}
     </div>
     <div id=\"mutation-types\" class=\"card\">
-        <h3>3. Flagged mutation types</h3>
-        {{mutation_types_plot}}
+        <h3>6. Flagged mutation types</h3>
+        {mutation_types_plot}
+    </div>
+    <div class=\"card\">
+        <h3>Datafiles</h3>
+        <p>Treefile: {os.path.basename(treefile)}</p>
+        <p>Flags CSV: {os.path.basename(flags_csv) if flags_csv else "None"}</p>
+        <p>Output directory: {os.path.basename(outdir) if outdir else ""}</p>
+    </div>
+    <div id=\"report-metadata\" class=\"card\">
+        <h3>Report metadata</h3>
+        <p>Generated: {generated_stamp}</p>
+        <p>Raccoon version: {raccoon_version}</p>
+        <p>Python: {sys.version.split()[0]}</p>
+        <p>Platform: {platform.system()} {platform.release()}</p>
     </div>
     """
-
-    root_to_tip_plot = "<p>No root-to-tip distances available.</p>"
-    if tip_heights:
-        fig = go.Figure(data=[go.Histogram(x=tip_heights, nbinsx=20)])
-        fig.update_layout(xaxis_title="Distance", yaxis_title="Count", showlegend=False)
-        _apply_plot_style(fig)
-        root_to_tip_plot = _plot_div(fig)
-
-    mutation_types_plot = "<p>No mutation types available.</p>"
-    if flags_csv and os.path.exists(flags_csv):
-        flags = pd.read_csv(flags_csv)
-        if not flags.empty and "mutation_type" in flags:
-            counts = flags["mutation_type"].value_counts().reset_index()
-            counts.columns = ["mutation_type", "count"]
-            fig = go.Figure(data=[go.Bar(x=counts["mutation_type"], y=counts["count"])])
-            fig.update_layout(xaxis_title="Type", yaxis_title="Count", showlegend=False)
-            _apply_plot_style(fig)
-            mutation_types_plot = _plot_div(fig)
-
-    summary_html = summary_html.format(
-        root_to_tip_plot=root_to_tip_plot,
-        mutation_types_plot=mutation_types_plot,
-    )
 
     plots_html = []
 

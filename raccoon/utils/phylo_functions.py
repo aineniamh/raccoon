@@ -407,7 +407,7 @@ def run_phylo_qc(
                             "site": site,
                             "mutation_type": "apobec3",
                             "present_in": branch,
-                            "mask_boolean": True,
+                            "mask_boolean": False,
                         })
                     elif edit_type == "adar" and include_adar:
                         try:
@@ -417,14 +417,20 @@ def run_phylo_qc(
                         adar_all_by_branch[branch].append(site)
 
             if include_adar:
+                adar_first_allowed = False
                 for branch, sites in adar_sites_by_branch.items():
                     if _has_adr_cluster(sites, adar_window, adar_min_count):
-                        for site in adar_all_by_branch[branch]:
+                        ordered_sites = sorted(adar_all_by_branch[branch], key=lambda s: int(s))
+                        for site in ordered_sites:
+                            mask_value = True
+                            if not adar_first_allowed:
+                                mask_value = False
+                                adar_first_allowed = True
                             rows.append({
                                 "site": site,
                                 "mutation_type": "adar",
                                 "present_in": branch,
-                                "mask_boolean": True,
+                                "mask_boolean": mask_value,
                             })
 
         branch_paths = get_path_to_root(treefile, tree_format=tree_format)
