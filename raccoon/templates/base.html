@@ -7,22 +7,22 @@
   <link rel="icon" href="{{ raccoon_logo }}">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
   <style>
-    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 300; margin: 20px; }
+    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 300; margin: 20px; background: #f7f9fc; color: #222; }
     h1 { margin-bottom: 0.2rem; }
     .meta { color: #666; margin-bottom: 1rem; }
     .section { margin: 1.5rem 0; }
-    .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 12px 16px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04); }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .logo { height: 48px; width: auto; }
     .logo-small { height: 48px; width: auto; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin: 10px 0; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
     h1, h2, h3, h4 { font-weight: 600; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #eee; padding: 6px 8px; text-align: left; }
     th { background: #e6e1ee; }
     tbody tr.filtered { background: #f2d6d6 !important; }
-    details { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin: 6px 0; }
+    details { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin: 6px 0; background: #fff; }
     summary { cursor: pointer; font-weight: 600; }
     .toc a { text-decoration: none; color: #2f5f6b; }
     .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee; color: #666; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
@@ -31,6 +31,7 @@
     .banner { background: #f6f3f9; border: 1px solid #e2dbea; padding: 10px 12px; border-radius: 8px; }
     .caption { color: #666; font-size: 0.9rem; margin-top: 6px; }
     .table-wrap { overflow-x: auto; }
+    .table-scroll { max-height: 520px; overflow-y: auto; }
     @media print {
       .dataTables_filter, .dataTables_length, .dataTables_info, .dataTables_paginate { display: none !important; }
       details summary { list-style: none; }

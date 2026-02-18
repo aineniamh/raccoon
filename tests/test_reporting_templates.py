@@ -4,6 +4,7 @@ from pathlib import Path
 from raccoon.utils.reporting import (
     generate_alignment_report,
     generate_combine_report,
+    generate_mask_report,
     generate_phylo_report,
 )
 
@@ -96,3 +97,29 @@ def test_generate_tree_report_renders_template(tmp_path: Path) -> None:
     assert "Raccoon tree-qc report" in html
     assert "Convergent mutations" in html
     assert "Reversions" in html
+
+
+def test_generate_mask_report_renders_template(tmp_path: Path) -> None:
+    alignment = tmp_path / "alignment.fasta"
+    _write_fasta(alignment, [
+        ("seq1", "ATGNNN"),
+        ("seq2", "ATG---"),
+    ])
+
+    mask_csv = tmp_path / "mask.csv"
+    with mask_csv.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["Name", "Minimum", "Maximum", "Length", "present_in", "note"])
+        writer.writeheader()
+        writer.writerow({"Name": "2", "Minimum": "2", "Maximum": "2", "Length": "1", "present_in": "seq1", "note": "mask"})
+
+    report_path = generate_mask_report(
+        outdir=str(tmp_path),
+        alignment_path=str(alignment),
+        mask_file=str(mask_csv),
+        output_alignment=str(tmp_path / "alignment.masked.fasta"),
+    )
+
+    html = Path(report_path).read_text()
+    assert "Raccoon mask report" in html
+    assert "Masked sites by sequence" in html
+    assert "Mask file entries" in html

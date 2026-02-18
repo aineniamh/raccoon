@@ -636,6 +636,89 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
     return outpath
 
 
+def generate_mask_report(
+    outdir: str,
+    alignment_path: str,
+    mask_file: Optional[str] = None,
+    output_alignment: Optional[str] = None,
+) -> str:
+    lengths = []
+    seq_ids = []
+    for rec in SeqIO.parse(alignment_path, "fasta"):
+        seq = str(rec.seq)
+        lengths.append(len(seq))
+        seq_ids.append(rec.id)
+
+    aln_len = _safe_max(lengths)
+    generated_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        from raccoon import __version__ as raccoon_version
+    except Exception:
+        raccoon_version = "unknown"
+
+    positions: List[int] = []
+    if mask_file and os.path.exists(mask_file):
+        try:
+            from raccoon.utils import alignment_functions as af
+            positions = sorted(af.parse_mask_sites(mask_file))
+        except Exception:
+            positions = []
+
+    valid_positions = [pos for pos in positions if 1 <= pos <= aln_len]
+    masked_count = len(valid_positions)
+    masked_pct = (masked_count / aln_len) if aln_len else 0.0
+
+    masked_table = None
+    if seq_ids:
+        rows = []
+        for seq_id in seq_ids:
+            rows.append({
+                "sequence": seq_id,
+                "masked_sites": masked_count,
+                "masked_pct": round(masked_pct, 4),
+            })
+        masked_table = _table_context(pd.DataFrame(rows))
+
+    mask_sites_table: Optional[Dict[str, Any]] = None
+    if mask_file and os.path.exists(mask_file):
+        site_rows = []
+        with open(mask_file, "r") as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                site_rows.append(row)
+        if site_rows:
+            headers = list(site_rows[0].keys())
+            rows = [[row.get(h, "") for h in headers] for row in site_rows]
+            mask_sites_table = {"headers": headers, "rows": rows}
+
+    outpath = os.path.join(outdir, "mask_report.html")
+    context = {
+        "summary": {
+            "sequences": len(seq_ids),
+            "alignment_length": aln_len,
+            "masked_sites": masked_count,
+            "masked_pct": round(masked_pct, 4),
+        },
+        "masked_table": masked_table,
+        "mask_sites_table": mask_sites_table,
+        "datafiles": {
+            "alignment": os.path.basename(alignment_path),
+            "mask_file": os.path.basename(mask_file) if mask_file else "None",
+            "output_alignment": os.path.basename(output_alignment) if output_alignment else "None",
+            "output_dir": os.path.basename(outdir) if outdir else "",
+        },
+        "report_metadata": {
+            "generated_stamp": generated_stamp,
+            "raccoon_version": raccoon_version,
+            "python_version": sys.version.split()[0],
+            "platform": f"{platform.system()} {platform.release()}",
+        },
+        "generated_stamp": generated_stamp,
+    }
+    _write_html(outpath, "Raccoon mask report", "mask.html", context)
+    return outpath
+
+
 def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] = None, tree_format: str = "auto") -> str:
     my_tree = load_tree(treefile, tree_format=tree_format)
     tip_names = []

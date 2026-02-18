@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="section">
+    <div class="toc card">
+      <h3>Table of contents</h3>
+      <ol>
+        <li><a href="#summary">Summary</a></li>
+        <li><a href="#masked">Masked sites by sequence</a></li>
+        <li><a href="#mask-sites">Mask file entries</a></li>
+      </ol>
+    </div>
+
+    <div id="summary" class="card">
+      <h3>1. Summary</h3>
+      <p>Sequences: {{ summary.sequences }}</p>
+      <p>Alignment length: {{ summary.alignment_length }}</p>
+      <p>Masked sites: {{ summary.masked_sites }}</p>
+      <p>Masked fraction: {{ summary.masked_pct }}</p>
+    </div>
+
+    <div id="masked" class="card">
+      <h3>2. Masked sites by sequence</h3>
+      {% if masked_table %}
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in masked_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in masked_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No masked-site summary available.</p>
+      {% endif %}
+    </div>
+
+    <div id="mask-sites" class="card">
+      <h3>3. Mask file entries</h3>
+      {% if mask_sites_table %}
+        <div class="table-wrap table-scroll">
+          <table class="datatable">
+            <thead>
+              <tr>
+                {% for header in mask_sites_table.headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in mask_sites_table.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No mask file entries available.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>Datafiles</h3>
+      <p>Input alignment: {{ datafiles.alignment }}</p>
+      <p>Mask file: {{ datafiles.mask_file }}</p>
+      <p>Output alignment: {{ datafiles.output_alignment }}</p>
+      <p>Output directory: {{ datafiles.output_dir }}</p>
+    </div>
+
+    <div id="report-metadata" class="card">
+      <h3>Report metadata</h3>
+      <p>Generated: {{ report_metadata.generated_stamp }}</p>
+      <p>Raccoon version: {{ report_metadata.raccoon_version }}</p>
+      <p>Python: {{ report_metadata.python_version }}</p>
+      <p>Platform: {{ report_metadata.platform }}</p>
+    </div>
+  </div>
+{% endblock %}
