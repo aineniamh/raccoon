@@ -57,6 +57,12 @@ Key options
 - `--mask-gap-adjacent/--no-mask-gap-adjacent`: include/exclude SNPs adjacent to gaps in mask output (default: include)
 - `--mask-frame-break/--no-mask-frame-break`: include/exclude frame-breaking indels in mask output (default: include)
 
+Mask output
+
+- The mask CSV now contains `flagged`, `type`, `minimum`, `maximum`, `length`, `present_in`, `note`.
+- `type` is either `site` (mask a single column) or `sequence_record` (remove sequence).
+- If a sequence has more than 20 flagged sites, it is emitted as a `sequence_record` entry and individual site rows for that sequence are omitted; the `note` column lists contributing sites.
+
 Behavior and exit codes
 
 - The command will try to create `--output-dir` if it does not exist and will verify it is writable.
@@ -76,6 +82,24 @@ raccoon aln-qc data/sequences.fasta -d results/alignment_qc \
   --genbank refs/ref.gb --reference-id NC_000000 \
   --no-mask-n-adjacent --no-mask-gap-adjacent
 ```
+
+mask subcommand
+
+Purpose: apply an aln-qc mask CSV to an alignment and write a masked FASTA.
+
+Basic usage:
+
+```bash
+raccoon mask data/alignment.fasta --mask-file results/alignment_qc/mask_sites.csv -d results/alignment_qc
+```
+
+Key options
+
+- `alignment` (positional): path to the input alignment (FASTA)
+- `--mask-file`: mask CSV from aln-qc
+- `-o, --output`: output masked alignment file name (default: <alignment>.masked.fasta)
+- `-d, --outdir`: output directory (default: .)
+- `-t, --sequence-type`: sequence type (nt/aa); uses N or X (default: nt)
 
 tree-qc subcommand
 

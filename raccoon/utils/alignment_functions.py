@@ -10,6 +10,7 @@ from Bio import AlignIO
 import collections
 import csv
 import math
+import re
 
 from .constants import *
 
@@ -118,6 +119,109 @@ def find_frame_breaking_indels(aln, genbank_path, reference_id=None):
                         sites_to_mask[site]['present_in'].append(rec.id)
                         sites_to_mask[site]['note'].add('frame_break')
     return sites_to_mask
+
+
+def _safe_int(value):
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def parse_mask_sites(mask_file):
+    if not mask_file or not os.path.exists(mask_file):
+        return set()
+
+    positions = set()
+    with open(mask_file, "r") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            entry_type = (row.get("type") or "site").strip().lower()
+            if entry_type == "sequence_record":
+                continue
+
+            min_val = _safe_int(row.get(KEY_MINIMUM))
+            max_val = _safe_int(row.get(KEY_MAXIMUM))
+
+            if min_val is None or max_val is None:
+                name_val = row.get(KEY_NAME, "") or row.get("flagged", "") or ""
+                digits = re.findall(r"\d+", name_val)
+                if digits:
+                    min_val = int(digits[0])
+                    max_val = int(digits[1]) if len(digits) > 1 else min_val
+
+            if min_val is None or max_val is None:
+                continue
+
+            if max_val < min_val:
+                min_val, max_val = max_val, min_val
+
+            for pos in range(min_val, max_val + 1):
+                positions.add(pos)
+
+    return positions
+
+
+def parse_mask_rows(mask_file):
+    if not mask_file or not os.path.exists(mask_file):
+        return [], []
+
+    site_positions = set()
+    sequences_to_remove = set()
+    with open(mask_file, "r") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            entry_type = (row.get("type") or "site").strip().lower()
+            flagged = (row.get("flagged") or row.get(KEY_NAME) or "").strip()
+            if entry_type == "sequence_record":
+                if flagged:
+                    sequences_to_remove.add(flagged)
+                continue
+
+            min_val = _safe_int(row.get(KEY_MINIMUM))
+            max_val = _safe_int(row.get(KEY_MAXIMUM))
+            if min_val is None or max_val is None:
+                digits = re.findall(r"\d+", flagged)
+                if digits:
+                    min_val = int(digits[0])
+                    max_val = int(digits[1]) if len(digits) > 1 else min_val
+
+            if min_val is None or max_val is None:
+                continue
+
+            if max_val < min_val:
+                min_val, max_val = max_val, min_val
+
+            for pos in range(min_val, max_val + 1):
+                site_positions.add(pos)
+
+    return sorted(site_positions), sorted(sequences_to_remove)
+
+
+def apply_mask_to_alignment(alignment_path, mask_file, output_path, mask_char="N"):
+    aln = read_alignment(alignment_path)
+    positions, sequences_to_remove = parse_mask_rows(mask_file)
+
+    if sequences_to_remove:
+        aln = type(aln)([rec for rec in aln if rec.id not in sequences_to_remove])
+
+    if not positions:
+        with open(output_path, "w") as handle:
+            AlignIO.write(aln, handle, "fasta")
+        return 0
+
+    max_len = aln.get_alignment_length()
+    valid_positions = [pos for pos in positions if 1 <= pos <= max_len]
+
+    for rec in aln:
+        seq_list = list(str(rec.seq))
+        for pos in valid_positions:
+            seq_list[pos - 1] = mask_char
+        rec.seq = type(rec.seq)("".join(seq_list))
+
+    with open(output_path, "w") as handle:
+        AlignIO.write(aln, handle, "fasta")
+    return len(valid_positions)
 
 
 def analyze_alignment(alignment, n_window=2, gap_window=1, snp_window=10, snp_count=3):
@@ -288,20 +392,58 @@ def run_alignment_qc(
             merged[site][KEY_PRESENT_IN].extend(info[KEY_PRESENT_IN])
             merged[site][KEY_NOTE].update(info[KEY_NOTE])
 
-    # write mask report
+    aln_len = aln.get_alignment_length()
+    sequence_flag_counts = collections.Counter()
+    sequence_flag_sites = collections.defaultdict(set)
+    for site, info in merged.items():
+        for seq_id in info[KEY_PRESENT_IN]:
+            sequence_flag_counts[seq_id] += 1
+            sequence_flag_sites[seq_id].add(site)
+
+    flagged_sequences = {
+        seq_id for seq_id, count in sequence_flag_counts.items() if count > 20
+    }
+
     mask_file = os.path.join(outdir, 'mask_sites.csv')
     with open(mask_file, 'w') as fw:
-        writer = csv.DictWriter(fw, lineterminator='\n', fieldnames=["Name","Minimum","Maximum","Length","present_in","note"])
+        writer = csv.DictWriter(
+            fw,
+            lineterminator='\n',
+            fieldnames=["flagged", "type", "Minimum", "Maximum", "Length", "present_in", "note"],
+        )
         writer.writeheader()
+
+        for seq_id in sorted(flagged_sequences):
+            sites = sorted(sequence_flag_sites.get(seq_id, []))
+            writer.writerow({
+                "flagged": seq_id,
+                "type": "sequence_record",
+                "Minimum": 1,
+                "Maximum": aln_len,
+                "Length": aln_len,
+                "present_in": seq_id,
+                "note": ",".join(str(site) for site in sites),
+            })
+
         for site in sorted(merged):
             row = merged[site]
-            new_row = dict(row)
-            if len(new_row[KEY_PRESENT_IN]) > 10:
-                new_row[KEY_PRESENT_IN] = 'many'
+            present_in = [seq_id for seq_id in row[KEY_PRESENT_IN] if seq_id not in flagged_sequences]
+            if not present_in:
+                continue
+            note = ';'.join(sorted(row[KEY_NOTE]))
+            if len(present_in) > 10:
+                present_in_val = 'many'
             else:
-                new_row[KEY_PRESENT_IN] = ';'.join(new_row[KEY_PRESENT_IN])
-            new_row[KEY_NOTE] = ';'.join(sorted(new_row[KEY_NOTE]))
-            writer.writerow(new_row)
+                present_in_val = ';'.join(present_in)
+            writer.writerow({
+                "flagged": site,
+                "type": "site",
+                "Minimum": site,
+                "Maximum": site,
+                "Length": 1,
+                "present_in": present_in_val,
+                "note": note,
+            })
 
     summary[KEY_SITES_TO_MASK] = merged
     summary[KEY_MASK_FILE] = mask_file

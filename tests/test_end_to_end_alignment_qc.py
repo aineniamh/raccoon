@@ -87,8 +87,9 @@ def test_alignment_qc_end_to_end(tmp_path):
     rows = list(csv.DictReader(open(mask_path)))
     assert rows, "Expected mask_sites.csv to contain at least one row"
 
-    notes_by_site = [row["note"] for row in rows]
-    present_by_site = [row["present_in"] for row in rows]
+    site_rows = [row for row in rows if row.get("type") == "site"]
+    notes_by_site = [row["note"] for row in site_rows]
+    present_by_site = [row["present_in"] for row in site_rows]
 
     assert any("frame_break" in note for note in notes_by_site)
     assert any("s_frame" in present for present in present_by_site)
@@ -107,6 +108,8 @@ def test_alignment_qc_disable_n_adjacent(tmp_path):
 
     mask_path = outdir / "mask_sites.csv"
     rows = list(csv.DictReader(open(mask_path)))
-    notes_by_site = [row["note"] for row in rows]
+    notes_by_site = [row["note"] for row in rows if row.get("type") == "site"]
 
     assert not any("N_adjacent" in note for note in notes_by_site)
+
+

@@ -465,7 +465,10 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
             with open(mask_file, "r") as handle:
                 reader = csv.DictReader(handle)
                 for row in reader:
-                    site = row.get("Name") or row.get("site")
+                    row_type = (row.get("type") or "site").strip().lower()
+                    if row_type != "site":
+                        continue
+                    site = row.get("flagged") or row.get("Name") or row.get("site")
                     present_in = row.get("present_in", "")
                     if site is None:
                         continue
@@ -486,7 +489,9 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
         with open(mask_file, "r") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
-                site_rows.append(row)
+                row_type = (row.get("type") or "site").strip().lower()
+                if row_type == "site":
+                    site_rows.append(row)
         if site_rows:
             headers = list(site_rows[0].keys())
             rows = [[row.get(h, "") for h in headers] for row in site_rows]
@@ -549,9 +554,18 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
         with open(mask_file, "r") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
+                row_type = (row.get("type") or "site").strip().lower()
+                if row_type != "site":
+                    continue
                 notes = row.get("note", "").split(";")
+                site_val = row.get("flagged") or row.get("Name")
+                try:
+                    site_int = int(site_val)
+                except Exception:
+                    continue
                 for note in notes:
-                    site_rows.append({"site": int(row["Name"]), "note": note})
+                    if note:
+                        site_rows.append({"site": site_int, "note": note})
         if site_rows:
             df = pd.DataFrame(site_rows)
             fig = go.Figure()
@@ -657,12 +671,14 @@ def generate_mask_report(
         raccoon_version = "unknown"
 
     positions: List[int] = []
+    sequences_to_remove: List[str] = []
     if mask_file and os.path.exists(mask_file):
         try:
             from raccoon.utils import alignment_functions as af
-            positions = sorted(af.parse_mask_sites(mask_file))
+            positions, sequences_to_remove = af.parse_mask_rows(mask_file)
         except Exception:
             positions = []
+            sequences_to_remove = []
 
     valid_positions = [pos for pos in positions if 1 <= pos <= aln_len]
     masked_count = len(valid_positions)
@@ -698,6 +714,7 @@ def generate_mask_report(
             "alignment_length": aln_len,
             "masked_sites": masked_count,
             "masked_pct": round(masked_pct, 4),
+            "sequences_removed": len(sequences_to_remove),
         },
         "masked_table": masked_table,
         "mask_sites_table": mask_sites_table,

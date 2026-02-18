@@ -60,9 +60,17 @@ def test_generate_alignment_report_renders_template(tmp_path: Path) -> None:
 
     mask_csv = tmp_path / "mask.csv"
     with mask_csv.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["Name", "note", "present_in"])
+        writer = csv.DictWriter(handle, fieldnames=["flagged", "type", "Minimum", "Maximum", "Length", "present_in", "note"])
         writer.writeheader()
-        writer.writerow({"Name": "2", "note": "homoplasy", "present_in": "seq1,seq2"})
+        writer.writerow({
+            "flagged": "2",
+            "type": "site",
+            "Minimum": "2",
+            "Maximum": "2",
+            "Length": "1",
+            "present_in": "seq1,seq2",
+            "note": "homoplasy",
+        })
 
     report_path = generate_alignment_report(
         outdir=str(tmp_path),
@@ -108,9 +116,17 @@ def test_generate_mask_report_renders_template(tmp_path: Path) -> None:
 
     mask_csv = tmp_path / "mask.csv"
     with mask_csv.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["Name", "Minimum", "Maximum", "Length", "present_in", "note"])
+        writer = csv.DictWriter(handle, fieldnames=["flagged", "type", "Minimum", "Maximum", "Length", "present_in", "note"])
         writer.writeheader()
-        writer.writerow({"Name": "2", "Minimum": "2", "Maximum": "2", "Length": "1", "present_in": "seq1", "note": "mask"})
+        writer.writerow({
+            "flagged": "2",
+            "type": "site",
+            "Minimum": "2",
+            "Maximum": "2",
+            "Length": "1",
+            "present_in": "seq1",
+            "note": "mask",
+        })
 
     report_path = generate_mask_report(
         outdir=str(tmp_path),
