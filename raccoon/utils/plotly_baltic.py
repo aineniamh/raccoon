@@ -1,4 +1,7 @@
-"""Plotly-based interactive tree rendering utilities."""
+"""Plotly-based interactive tree rendering utilities.
+This is used for tree visualization in the phylo-qc report and may be useful for other applications.
+The code was inspired by the baltic library by Gytis Dudas (https://github.com/evogytis/baltic)
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
