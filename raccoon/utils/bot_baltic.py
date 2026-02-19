@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+import csv
+import os
+
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -47,6 +50,41 @@ def _format_traits(traits: Dict[str, Any]) -> str:
     return "<br>".join(lines)
 
 
+def _read_branch_snps(branch_snps_path: Optional[str]) -> Dict[str, List[Dict[str, str]]]:
+    if not branch_snps_path or not os.path.exists(branch_snps_path):
+        return {}
+    branch_snps: Dict[str, List[Dict[str, str]]] = {}
+    with open(branch_snps_path, "r") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            parent = row.get("parent", "")
+            child = row.get("child", "")
+            if not parent or not child:
+                continue
+            branch_key = f"{parent}_{child}"
+            branch_snps.setdefault(branch_key, []).append({
+                "site": row.get("site", ""),
+                "snp": row.get("snp", ""),
+                "dimer": row.get("dimer", ""),
+            })
+    return branch_snps
+
+
+def _format_branch_snps(branch_key: str, snps: List[Dict[str, str]], max_rows: int = 20) -> str:
+    if not snps:
+        return f"Branch: {branch_key}<br>No mutations"
+    lines = [f"Branch: {branch_key}", f"Mutations: {len(snps)}"]
+    for item in snps[:max_rows]:
+        site = item.get("site", "")
+        snp = item.get("snp", "")
+        dimer = item.get("dimer", "")
+        suffix = f" ({dimer})" if dimer else ""
+        lines.append(f"{site}: {snp}{suffix}")
+    if len(snps) > max_rows:
+        lines.append(f"… and {len(snps) - max_rows} more")
+    return "<br>".join(lines)
+
+
 def _parse_label_traits(label: str) -> Dict[str, Any]:
     traits: Dict[str, Any] = {}
     if not label:
@@ -59,7 +97,11 @@ def _parse_label_traits(label: str) -> Dict[str, Any]:
     return traits
 
 
-def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
+def build_tree_plot(
+    treefile: str,
+    tree_format: str = "auto",
+    branch_snps_path: Optional[str] = None,
+) -> str:
     try:
         tree = load_tree(treefile, tree_format=tree_format)
     except Exception:
@@ -96,10 +138,17 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
     tip_y: List[float] = []
     tip_hover: List[str] = []
     tip_traits: List[Dict[str, Any]] = []
+    tip_labels: List[str] = []
 
     node_x: List[float] = []
     node_y: List[float] = []
     node_hover: List[str] = []
+
+    branch_hover_x: List[float] = []
+    branch_hover_y: List[float] = []
+    branch_hover_text: List[str] = []
+
+    branch_snps = _read_branch_snps(branch_snps_path)
 
     for obj in getattr(tree, "Objects", []):
         label = ensure_node_label(obj) or getattr(obj, "name", "") or ""
@@ -115,12 +164,27 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
             tip_y.append(obj.y)
             tip_traits.append(traits)
             tip_hover.append(_format_traits(traits))
+            tip_labels.append(label)
         elif getattr(obj, "is_node", lambda: False)():
             if obj.x is None or obj.y is None:
                 continue
             node_x.append(obj.x)
             node_y.append(obj.y)
             node_hover.append(_format_traits(traits))
+
+    for node in internal_nodes:
+        parent_label = ensure_node_label(node) or getattr(node, "name", "") or ""
+        for child in getattr(node, "children", []) or []:
+            if child.x is None or child.y is None or node.x is None:
+                continue
+            child_label = ensure_node_label(child) or getattr(child, "name", "") or ""
+            branch_key = f"{parent_label}_{child_label}"
+            snps = branch_snps.get(branch_key)
+            if not snps:
+                continue
+            branch_hover_x.append((node.x + child.x) / 2)
+            branch_hover_y.append(child.y)
+            branch_hover_text.append(_format_branch_snps(branch_key, snps))
 
     color_keys = set()
     for traits in tip_traits:
@@ -154,6 +218,16 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
         mapping = color_maps.get(key, {})
         return [mapping.get(str(t.get(key, "")), "#4d4d4d") for t in tip_traits]
 
+    x_values = [v for v in line_x if v is not None]
+    x_values.extend(tip_x)
+    x_values.extend(node_x)
+    x_min = min(x_values) if x_values else 0.0
+    x_max = max(x_values) if x_values else 1.0
+    x_pad = (x_max - x_min) * 0.02 if x_values else 0.1
+    x_min_pad = x_min - x_pad
+    x_max_pad = x_max + x_pad
+    x_range_default = (x_min_pad, x_max_pad)
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=line_x,
@@ -168,7 +242,7 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
         x=tip_x,
         y=tip_y,
         mode="markers",
-        marker=dict(size=6, color=_colors_for(default_key)),
+        marker=dict(size=8, color=_colors_for(default_key)),
         hovertemplate="%{text}<extra></extra>",
         text=tip_hover,
         name="Tips",
@@ -182,30 +256,56 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
         text=node_hover,
         name="Nodes",
     ))
+    if tip_x:
+        tip_span = max(tip_x) - min(tip_x)
+        x_offset = tip_span * 0.01 if tip_span else 0.01
+        tip_label_x = [x + x_offset for x in tip_x]
+    else:
+        tip_label_x = []
+
+    fig.add_trace(go.Scatter(
+        x=tip_label_x,
+        y=tip_y,
+        mode="text",
+        text=tip_labels,
+        textposition="middle right",
+        textfont=dict(size=10, color="#222"),
+        hoverinfo="skip",
+        showlegend=False,
+        name="Tip labels",
+        visible=True,
+    ))
+    fig.add_trace(go.Scatter(
+        x=branch_hover_x,
+        y=branch_hover_y,
+        mode="markers",
+        marker=dict(size=10, color="rgba(0,0,0,0)"),
+        hovertemplate="%{text}<extra></extra>",
+        text=branch_hover_text,
+        showlegend=False,
+        name="Branch mutations",
+    ))
 
     scale_values = [round(1.0 + (i * 0.01), 2) for i in range(101)]
     y_min = min(tip_y) if tip_y else 0
     y_max = max(tip_y) if tip_y else 0
-    base_height = max(500, int((y_max if tip_y else 0) * 15)) if tip_y else 500
+    y_span = y_max - y_min
+    y_pad = max(1.0, y_span * 0.03) if tip_y else 1.0
+    y_min_pad = y_min - y_pad
+    y_max_pad = y_max + y_pad
+    base_height = max(500, int((y_max_pad if tip_y else 0) * 15)) if tip_y else 500
+    y_range_default = (y_min_pad, y_max_pad)
+    height_default = base_height
 
     slider_steps = []
     for scale in scale_values:
         slider_steps.append({
             "label": f"{scale:.2f}x",
-            "method": "update",
-            "args": [
-                {
-                    "y": [
-                        _scale_values(line_y, scale),
-                        _scale_values(tip_y, scale),
-                        _scale_values(node_y, scale),
-                    ]
-                },
-                {
-                    "yaxis": {"range": [y_min * scale, y_max * scale]},
-                    "height": int(base_height * scale),
-                },
-            ],
+            "method": "relayout",
+            "args": [{
+                "height": int(base_height * scale),
+                "yaxis.range": list(y_range_default),
+            }],
         })
 
     color_buttons = []
@@ -217,27 +317,101 @@ def build_tree_plot(treefile: str, tree_format: str = "auto") -> str:
         })
 
     fig.update_layout(
-        xaxis_title="Branch length",
-        yaxis_title="Tips",
+        xaxis_title="Substitutions per site",
         showlegend=False,
-        height=base_height,
-        yaxis=dict(range=[y_min, y_max] if tip_y else None),
+        height=height_default,
+        xaxis=dict(range=list(x_range_default)),
+        yaxis=dict(range=list(y_range_default) if tip_y else None),
         sliders=[{
             "active": 0,
-            "pad": {"t": 30},
-            "currentvalue": {"prefix": "Y scale: "},
+            "pad": {"t": 0, "b": 0},
+            "len": 0.28,
+            "x": 0.62,
+            "y": 1.12,
+            "xanchor": "left",
+            "yanchor": "top",
             "steps": slider_steps,
         }],
         updatemenus=[{
             "buttons": color_buttons,
             "direction": "down",
             "showactive": True,
-            "x": 0.02,
+            "x": 0.12,
             "y": 1.12,
             "xanchor": "left",
             "yanchor": "top",
+        }, {
+            "buttons": [
+                {"label": "On", "method": "restyle", "args": [{"visible": True}, [3]]},
+                {"label": "Off", "method": "restyle", "args": [{"visible": False}, [3]]},
+            ],
+            "direction": "down",
+            "showactive": False,
+            "x": 0.36,
+            "y": 1.12,
+            "xanchor": "left",
+            "yanchor": "top",
+        }, {
+            "buttons": [
+                {
+                    "label": "Reset view",
+                    "method": "relayout",
+                    "args": [{
+                        "xaxis.range[0]": x_range_default[0],
+                        "xaxis.range[1]": x_range_default[1],
+                        "yaxis.autorange": False,
+                        "yaxis.range[0]": y_range_default[0],
+                        "yaxis.range[1]": y_range_default[1],
+                        "height": height_default,
+                        "sliders[0].active": 0,
+                    }],
+                }
+            ],
+            "type": "buttons",
+            "direction": "right",
+            "showactive": False,
+            "x": 0.98,
+            "y": 1.12,
+            "xanchor": "right",
+            "yanchor": "top",
         }],
-        margin=dict(l=60, r=20, t=40, b=40),
+        annotations=[
+            {
+                "text": "Colour by",
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.02,
+                "y": 1.12,
+                "showarrow": False,
+                "xanchor": "left",
+                "yanchor": "top",
+                "font": {"size": 12, "color": "#111"},
+            },
+            {
+                "text": "Tip labels",
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.28,
+                "y": 1.12,
+                "showarrow": False,
+                "xanchor": "left",
+                "yanchor": "top",
+                "font": {"size": 12, "color": "#111"},
+            },
+            {
+                "text": "Y scale",
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.56,
+                "y": 1.12,
+                "showarrow": False,
+                "xanchor": "left",
+                "yanchor": "top",
+                "font": {"size": 12, "color": "#111"},
+            },
+        ],
+        margin=dict(l=60, r=20, t=60, b=40),
     )
     _apply_plot_style(fig)
+    fig.update_yaxes(showticklabels=False, ticks="", title=None, showline=False)
     return _plot_div(fig)
