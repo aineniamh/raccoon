@@ -30,6 +30,12 @@ def ensure_output_directory(outdir: str) -> bool:
     return True
 
 
+def ensure_parent_directory(path: str) -> bool:
+    """Ensure the parent directory for a file path exists and is writable."""
+    parent = os.path.dirname(path) or "."
+    return ensure_output_directory(parent)
+
+
 def validate_input_file(filepath: str, name: str = "input file") -> bool:
     """Validate that an input file exists and is readable.
     

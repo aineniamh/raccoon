@@ -124,6 +124,8 @@ def main(args):
             out_handle = sys.stdout
             close_handle = False
         else:
+            if not io.ensure_parent_directory(output_path):
+                return 1
             out_handle = open(output_path, "w")
             close_handle = True
 
@@ -164,6 +166,8 @@ def main(args):
         try:
             from raccoon.utils import reporting
             report_outdir = os.path.dirname(output_path) or os.getcwd()
+            if not io.ensure_output_directory(report_outdir):
+                return 1
             reporting.generate_combine_report(
                 outdir=report_outdir,
                 output_fasta=output_path if output_path != "-" else "",
