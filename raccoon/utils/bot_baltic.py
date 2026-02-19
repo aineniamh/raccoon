@@ -300,7 +300,7 @@ def build_tree_plot(
     slider_steps = []
     for scale in scale_values:
         slider_steps.append({
-            "label": f"{scale:.2f}x",
+            "label": "",
             "method": "relayout",
             "args": [{
                 "height": int(base_height * scale),
@@ -325,6 +325,8 @@ def build_tree_plot(
         sliders=[{
             "active": 0,
             "pad": {"t": 0, "b": 0},
+            "ticklen": 0,
+            "tickwidth": 0,
             "len": 0.28,
             "x": 0.62,
             "y": 1.12,
@@ -399,7 +401,7 @@ def build_tree_plot(
                 "font": {"size": 12, "color": "#111"},
             },
             {
-                "text": "Y scale",
+                "text": "Expand tree",
                 "xref": "paper",
                 "yref": "paper",
                 "x": 0.56,
