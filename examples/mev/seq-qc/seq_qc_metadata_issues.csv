@@ -1,0 +1,3 @@
+file,id,parsed_id,status,issue,location,date
+mev_sample.fasta,PP_004C7NN.2,PP_004C7NN.2,filtered,missing location,,2025-10-01
+mev_sample.fasta,PP_003MAAS.2||2019,PP_003MAAS.2,kept,missing location,,2019

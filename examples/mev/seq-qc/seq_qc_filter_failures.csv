@@ -1,0 +1,5 @@
+file,id,parsed_id,length,n_content,reason
+mev_sample.fasta,PP_003NAXF.2,PP_003NAXF.2,15678,0.89801,N content > 0.2
+mev_sample.fasta,PP_003N9HA.2,PP_003N9HA.2,15845,0.8994,N content > 0.2
+mev_sample.fasta,PP_003Q816.2,PP_003Q816.2,200,0.0,length < 14000
+mev_sample.fasta,PP_004C7NN.2,PP_004C7NN.2,200,0.0,length < 14000

@@ -1,0 +1,9 @@
+flagged,type,Minimum,Maximum,Length,present_in,note
+1200,site,1200,1200,1,PP_004H7JK.2|USA|2025-12-01,gap_adjacent
+1227,site,1227,1227,1,PP_004C6JX.1|USA|2025-10-06,clustered_snps
+1230,site,1230,1230,1,PP_004C6JX.1|USA|2025-10-06,clustered_snps
+1232,site,1232,1232,1,PP_004C6JX.1|USA|2025-10-06,clustered_snps
+1236,site,1236,1236,1,PP_004C6JX.1|USA|2025-10-06,clustered_snps
+4764,site,4764,4764,1,PP_003MAAS.2||2019,clustered_snps
+4766,site,4766,4766,1,PP_003MAAS.2||2019,clustered_snps
+4771,site,4771,4771,1,PP_003MAAS.2||2019,clustered_snps
