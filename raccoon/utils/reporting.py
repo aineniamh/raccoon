@@ -138,6 +138,8 @@ def generate_combine_report(
     header_separator: str = "|",
     min_length: Optional[int] = None,
     max_n_content: Optional[float] = None,
+    filter_failures: Optional[List[Dict[str, Any]]] = None,
+    metadata_issues: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     records_summary = []
     ids_by_file = {}
@@ -328,41 +330,94 @@ def generate_combine_report(
     filtered_count = len(filtered_rows)
 
     length_plot_html = ""
-    length_groups: Dict[int, List[str]] = {}
+    lengths = []
+    length_ids = []
     for path in input_fastas:
         for rec in SeqIO.parse(path, "fasta"):
-            length_groups.setdefault(len(rec.seq), []).append(rec.id)
-    if length_groups:
-        lengths_sorted = sorted(length_groups.keys())
-        counts = [len(length_groups[l]) for l in lengths_sorted]
-        ids_by_length = [", ".join(length_groups[l]) for l in lengths_sorted]
+            lengths.append(len(rec.seq))
+            length_ids.append(rec.id)
+    if lengths:
+        min_len = min(lengths)
+        max_len = max(lengths)
+        median_len = float(np.median(lengths))
+        min_ids = [seq_id for seq_id, seq_len in zip(length_ids, lengths) if seq_len == min_len]
+        max_ids = [seq_id for seq_id, seq_len in zip(length_ids, lengths) if seq_len == max_len]
+        span = max_len - min_len
+        pad = max(50, int(span * 0.03)) if span else 50
+        y_min = max(0, min_len - pad)
+        y_max = max_len + pad
+
+        def _format_length(value: float) -> str:
+            if float(value).is_integer():
+                return str(int(value))
+            return f"{value:.1f}"
+
+        min_ids_text = ", ".join(min_ids) if min_ids else "n/a"
+        max_ids_text = ", ".join(max_ids) if max_ids else "n/a"
+
         fig = go.Figure(data=[
-            go.Bar(
-                x=lengths_sorted,
-                y=counts,
-                marker=dict(color="#4BA3A8"),
-                customdata=ids_by_length,
-                hovertemplate="Length: %{x}<br>Count: %{y}<br>IDs: %{customdata}<extra></extra>",
+            go.Box(
+                x=lengths,
+                y=[0] * len(lengths),
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=0,
+                marker=dict(color="#4BA3A8", opacity=0.6),
+                line=dict(color="#4BA3A8"),
+                hoverinfo="skip",
+                name="Lengths",
+                orientation="h",
             )
         ])
-        max_len = max(lengths_sorted) if lengths_sorted else 0
+        fig.add_trace(
+            go.Scatter(
+                x=[min_len],
+                y=[0],
+                mode="markers",
+                marker=dict(color="#c77c8a", size=8, symbol="circle"),
+                hovertemplate=f"Min length: {_format_length(min_len)} bp<br>IDs: {min_ids_text}<extra></extra>",
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[max_len],
+                y=[0],
+                mode="markers",
+                marker=dict(color="#7A6BB1", size=8, symbol="circle"),
+                hovertemplate=f"Max length: {_format_length(max_len)} bp<br>IDs: {max_ids_text}<extra></extra>",
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[median_len],
+                y=[0.0],
+                mode="markers",
+                marker=dict(color="#4BA3A8", size=10, symbol="circle"),
+                hovertemplate=f"Median length: {_format_length(median_len)} bp<extra></extra>",
+                showlegend=False,
+            )
+        )
         fig.update_layout(
             xaxis_title="Sequence length (bp)",
-            yaxis_title="Count",
+            yaxis_title="",
             showlegend=False,
             dragmode=False,
+            hovermode="closest",
         )
-        fig.update_xaxes(range=[0, max_len], rangemode="tozero")
+        fig.update_xaxes(range=[y_min, y_max])
+        fig.update_yaxes(range=[-1, 1], showticklabels=False, showgrid=False, zeroline=False)
         if min_length is not None:
-            fig.add_shape(
-                type="line",
-                x0=min_length,
-                x1=min_length,
-                y0=0,
-                y1=1,
-                xref="x",
-                yref="paper",
-                line=dict(color="#c77c8a", width=2, dash="dash"),
+            fig.add_trace(
+                go.Scatter(
+                    x=[min_length, min_length],
+                    y=[-0.9, 0.9],
+                    mode="lines",
+                    line=dict(color="#c77c8a", width=2, dash="dash"),
+                    hovertemplate=f"Minimum length filter: {_format_length(min_length)} bp<extra></extra>",
+                    showlegend=False,
+                )
             )
         _apply_plot_style(fig)
         length_plot_html = _plot_div(fig)
@@ -408,6 +463,9 @@ def generate_combine_report(
     except Exception:
         raccoon_version = "unknown"
     outpath = os.path.join(outdir, "seq-qc_report.html")
+    filter_failures_table = _table_context(pd.DataFrame(filter_failures)) if filter_failures else None
+    metadata_issues_table = _table_context(pd.DataFrame(metadata_issues)) if metadata_issues else None
+
     context = {
         "summary": {
             "total_sequences": total_sequences,
@@ -423,6 +481,8 @@ def generate_combine_report(
             for fname, details in seq_details_by_file.items()
         ],
         "filtered_keys": {f"{f}::{i}" for f, i in filtered_lookup},
+        "filter_failures_table": filter_failures_table,
+        "metadata_issues_table": metadata_issues_table,
         "length_plot_html": length_plot_html,
         "metadata_summary": metadata_summary,
         "metadata_tables": metadata_tables,
@@ -532,40 +592,40 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
             z=z,
             x=list(range(1, aln_len + 1)),
             y=y_positions,
-            colorscale=[[0, "#ffffff"], [1, "#bfc3c8"]],
-            showscale=False,
-            text=text,
-            texttemplate="",
-            textfont=dict(size=8),
-            hovertemplate="ID: %{customdata}<br>Position: %{x}<br>Base: %{text}<br>N: %{z}<extra></extra>",
-            customdata=[[seq_ids[i]] * aln_len for i in range(len(seq_ids))],
+            colorscale=[[0, "#ffffff"], [1, "#bfc3c8"]]
+            # showscale=False,
+            # text=text,
+            # texttemplate="",
+            # textfont=dict(size=8),
+            # hovertemplate="ID: %{customdata}<br>Position: %{x}<br>Base: %{text}<br>N: %{z}<extra></extra>",
+            # customdata=[[seq_ids[i]] * aln_len for i in range(len(seq_ids))],
         )])
-        shapes = []
-        for i in range(len(seq_ids)):
-            if i % 2 == 1:
-                shapes.append(dict(
-                    type="rect",
-                    xref="x",
-                    yref="y",
-                    x0=0.5,
-                    x1=aln_len + 0.5,
-                    y0=i - 0.5,
-                    y1=i + 0.5,
-                    fillcolor="#ede8f3",
-                    opacity=0.4,
-                    line_width=0,
-                    layer="below",
-                ))
+        # shapes = []
+        # for i in range(len(seq_ids)):
+        #     if i % 2 == 1:
+        #         shapes.append(dict(
+        #             type="rect",
+        #             xref="x",
+        #             yref="y",
+        #             x0=0.5,
+        #             x1=aln_len + 0.5,
+        #             y0=i - 0.5,
+        #             y1=i + 0.5,
+        #             fillcolor="#ede8f3",
+        #             opacity=0.4,
+        #             line_width=0,
+        #             layer="below",
+        #         ))
         height = max(400, len(seq_ids) * 14)
         tick_size = 12 if len(seq_ids) <= 40 else 8
-        fig.update_layout(
-            xaxis_title="Position (bp)",
-            yaxis_title="Sequence",
-            yaxis=dict(tickmode="array", tickvals=y_positions, ticktext=seq_ids, tickfont=dict(size=tick_size)),
-            showlegend=False,
-            shapes=shapes,
-            height=height,
-        )
+        # fig.update_layout(
+        #     xaxis_title="Position (bp)",
+        #     yaxis_title="Sequence",
+        #     yaxis=dict(tickmode="array", tickvals=y_positions, ticktext=seq_ids, tickfont=dict(size=tick_size)),
+        #     showlegend=False,
+        #     # shapes=shapes,
+        #     height=height
+        # )
         _apply_plot_style(fig)
         n_blocks_plot_html = _plot_div(fig, div_id="n-blocks-plot")
 
@@ -649,8 +709,8 @@ def generate_alignment_report(outdir: str, alignment_path: str, mask_file: Optio
             "mean_n_content": round(_safe_mean(n_contents), 4),
             "mean_completeness": round(_safe_mean(completeness), 4),
         },
-        "n_blocks_plot_html": n_blocks_plot_html,
-        "has_n_blocks_plot": bool(n_blocks_plot_html),
+        # "n_blocks_plot_html": n_blocks_plot_html,
+        # "has_n_blocks_plot": bool(n_blocks_plot_html),
         "sites_table": sites_table,
         "sequence_removals_table": sequence_removals_table,
         "flagged_plot_html": flagged_plot_html,
@@ -787,7 +847,7 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
     convergent_table = None
     reversion_table = None
     immune_editing_table = None
-    if flags_df is not None and not flags_df.empty and "mutation_type" in flags_df.columns:
+    if flags_df is not None and not flags_df.empty and "present_in" in flags_df.columns:
         def _merge_present_in(frame: pd.DataFrame) -> pd.DataFrame:
             if frame.empty:
                 return frame
