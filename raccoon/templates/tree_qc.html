@@ -5,6 +5,7 @@
       <h3>Table of contents</h3>
       <ol>
         <li><a href="#summary">Summary</a></li>
+        <li><a href="#tree">Interactive tree</a></li>
         <li><a href="#root-to-tip">Root-to-tip regression</a></li>
         <li><a href="#convergent">Convergent mutations</a></li>
         <li><a href="#reversions">Reversions</a></li>
@@ -21,14 +22,47 @@
     </div>
 
     <div id="root-to-tip" class="card">
-      <h3>2. Root-to-tip regression</h3>
+      <h3>3. Root-to-tip regression</h3>
       {{ root_to_tip_plot_html | safe }}
     </div>
 
+    <div id="tree" class="card">
+      <h3>2. Interactive tree</h3>
+      {% if tree_plot_html %}
+        <div id="tree-plot-container">
+          {{ tree_plot_html | safe }}
+        </div>
+      {% else %}
+        <p>No interactive tree available.</p>
+      {% endif %}
+      <p class="caption">Use the dropdown to colour tips by trait and the slider to expand the tree vertically.</p>
+    </div>
+    {% if tree_plot_html %}
+      <script>
+        (function () {
+          var container = document.getElementById('tree-plot-container');
+          if (!container || !window.Plotly) return;
+          var plot = container.querySelector('.js-plotly-plot');
+          if (!plot) return;
+
+          function syncHeight() {
+            var height = (plot.layout && plot.layout.height) ? plot.layout.height : plot.clientHeight;
+            if (height) {
+              container.style.height = height + 'px';
+            }
+          }
+
+          plot.on('plotly_afterplot', syncHeight);
+          plot.on('plotly_animated', syncHeight);
+          syncHeight();
+        })();
+      </script>
+    {% endif %}
+
     <div id="convergent" class="card">
-      <h3>3. Convergent mutations</h3>
+      <h3>4. Convergent mutations</h3>
       {% if convergent_table %}
-        <div class="table-wrap">
+        <div class="table-wrap table-scroll">
           <table class="datatable">
             <thead>
               <tr>
@@ -54,9 +88,9 @@
     </div>
 
     <div id="reversions" class="card">
-      <h3>4. Reversions</h3>
+      <h3>5. Reversions</h3>
       {% if reversion_table %}
-        <div class="table-wrap">
+        <div class="table-wrap table-scroll">
           <table class="datatable">
             <thead>
               <tr>
@@ -82,9 +116,9 @@
     </div>
 
     <div id="immune" class="card">
-      <h3>5. Signatures of human immune editing</h3>
+      <h3>6. Signatures of human immune editing</h3>
       {% if immune_editing_table %}
-        <div class="table-wrap">
+        <div class="table-wrap table-scroll">
           <table class="datatable">
             <thead>
               <tr>
@@ -110,7 +144,7 @@
     </div>
 
     <div id="mutation-types" class="card">
-      <h3>6. Flagged mutation types</h3>
+      <h3>7. Flagged mutation types</h3>
       {{ mutation_types_plot_html | safe }}
     </div>
 
