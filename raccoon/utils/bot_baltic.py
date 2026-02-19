@@ -34,7 +34,7 @@ def _plot_div(fig: go.Figure, div_id: Optional[str] = None) -> str:
         fig,
         include_plotlyjs="cdn",
         full_html=False,
-        config={"displayModeBar": False, "showTips": False, "doubleClick": False},
+        config={"displayModeBar": False, "showTips": False, "doubleClick": False, "responsive": True},
         auto_play=False,
         div_id=div_id,
     )

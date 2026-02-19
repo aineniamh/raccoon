@@ -100,7 +100,12 @@ def _plot_div(fig: go.Figure, div_id: Optional[str] = None) -> str:
         fig,
         include_plotlyjs="cdn",
         full_html=False,
-        config={"displayModeBar": False},
+        config={
+            "displayModeBar": False,
+            "responsive": True,
+            "showTips": False,
+            "doubleClick": False,
+        },
         div_id=div_id,
     )
 
@@ -783,9 +788,26 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
     reversion_table = None
     immune_editing_table = None
     if flags_df is not None and not flags_df.empty and "mutation_type" in flags_df.columns:
+        def _merge_present_in(frame: pd.DataFrame) -> pd.DataFrame:
+            if frame.empty:
+                return frame
+            cols = [c for c in ["site", "mutation_type"] if c in frame.columns]
+            def _join_unique(values: pd.Series) -> str:
+                items = [str(v) for v in values if pd.notna(v) and str(v).strip()]
+                return ";".join(sorted(set(items)))
+            aggregations = {
+                "present_in": _join_unique,
+            }
+            if "mask_boolean" in frame.columns:
+                aggregations["mask_boolean"] = "any"
+            merged = frame.groupby(cols, dropna=False, as_index=False).agg(aggregations)
+            return merged
+
         convergent = flags_df[flags_df["mutation_type"].str.contains("convergent", case=False, na=False)]
+        convergent = _merge_present_in(convergent)
         convergent_table = _table_context(convergent)
         reversion = flags_df[flags_df["mutation_type"].str.contains("reversion", case=False, na=False)]
+        reversion = _merge_present_in(reversion)
         reversion_table = _table_context(reversion)
         immune = flags_df[flags_df["mutation_type"].str.contains("adar|apobec", case=False, na=False)]
         immune_editing_table = _table_context(immune)

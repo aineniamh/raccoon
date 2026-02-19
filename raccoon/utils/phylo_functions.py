@@ -357,10 +357,42 @@ def build_branch_snps(treefile, state_file, alignment, outdir, tree_format, phyl
     return branch_snps_out
 
 def write_phylo_flags_csv(outfile, rows):
+    def _merge_rows(items):
+        merged = {}
+        order = []
+        for row in items:
+            site = row.get("site", "")
+            mutation_type = row.get("mutation_type", "")
+            key = (site, mutation_type)
+            if key not in merged:
+                merged[key] = {
+                    "site": site,
+                    "mutation_type": mutation_type,
+                    "present_in": set(),
+                    "mask_boolean": False,
+                }
+                order.append(key)
+            present = row.get("present_in", "")
+            if present:
+                merged[key]["present_in"].add(str(present))
+            merged[key]["mask_boolean"] = merged[key]["mask_boolean"] or bool(row.get("mask_boolean", False))
+        output = []
+        for key in order:
+            entry = merged[key]
+            present = ";".join(sorted(entry["present_in"]))
+            output.append({
+                "site": entry["site"],
+                "mutation_type": entry["mutation_type"],
+                "present_in": present,
+                "mask_boolean": entry["mask_boolean"],
+            })
+        return output
+
+    merged_rows = _merge_rows(rows)
     with open(outfile, "w") as handle:
         writer = csv.DictWriter(handle, fieldnames=["site", "mutation_type", "present_in", "mask_boolean"], lineterminator="\n")
         writer.writeheader()
-        for row in rows:
+        for row in merged_rows:
             writer.writerow(row)
 
 def run_phylo_qc(

@@ -32,6 +32,8 @@
     .caption { color: #666; font-size: 0.9rem; margin-top: 6px; }
     .table-wrap { overflow-x: auto; }
     .table-scroll { max-height: 520px; overflow-y: auto; }
+    .plot-reset-button { position: absolute; top: 8px; right: 8px; z-index: 10; background: #ffffff; border: 1px solid #ddd; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .plot-reset-wrap { position: relative; }
     @media print {
       .dataTables_filter, .dataTables_length, .dataTables_info, .dataTables_paginate { display: none !important; }
       details summary { list-style: none; }
@@ -65,6 +67,76 @@
         autoWidth: false
       });
     });
+
+    (function () {
+      if (!window.Plotly) return;
+      function resizePlots() {
+        var plots = document.querySelectorAll('.js-plotly-plot');
+        plots.forEach(function (plot) {
+          try {
+            window.Plotly.Plots.resize(plot);
+          } catch (err) {
+            /* noop */
+          }
+        });
+      }
+      function attachResetButtons() {
+        var plots = document.querySelectorAll('.js-plotly-plot');
+        plots.forEach(function (plot) {
+          if (plot.dataset.resetAttached) return;
+          plot.dataset.resetAttached = 'true';
+
+          var wrap = plot.parentElement;
+          if (!wrap) return;
+          wrap.classList.add('plot-reset-wrap');
+
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'plot-reset-button';
+          button.textContent = 'Reset view';
+
+          function cacheDefaults() {
+            if (plot.dataset.defaultsCaptured) return;
+            var layout = plot.layout || {};
+            var xRange = layout.xaxis && layout.xaxis.range ? layout.xaxis.range.slice() : null;
+            var yRange = layout.yaxis && layout.yaxis.range ? layout.yaxis.range.slice() : null;
+            var height = layout.height || null;
+            plot.dataset.xRange = xRange ? JSON.stringify(xRange) : '';
+            plot.dataset.yRange = yRange ? JSON.stringify(yRange) : '';
+            plot.dataset.height = height ? String(height) : '';
+            plot.dataset.defaultsCaptured = 'true';
+          }
+
+          cacheDefaults();
+          plot.on('plotly_afterplot', cacheDefaults);
+
+          button.addEventListener('click', function () {
+            var update = {};
+            if (plot.dataset.xRange) {
+              var xr = JSON.parse(plot.dataset.xRange);
+              update['xaxis.range'] = xr;
+            } else {
+              update['xaxis.autorange'] = true;
+            }
+            if (plot.dataset.yRange) {
+              var yr = JSON.parse(plot.dataset.yRange);
+              update['yaxis.range'] = yr;
+              update['yaxis.autorange'] = false;
+            } else {
+              update['yaxis.autorange'] = true;
+            }
+            if (plot.dataset.height) {
+              update.height = Number(plot.dataset.height);
+            }
+            window.Plotly.relayout(plot, update);
+          });
+
+          wrap.appendChild(button);
+        });
+      }
+      window.addEventListener('resize', resizePlots);
+      window.addEventListener('load', attachResetButtons);
+    })();
   </script>
 </body>
 </html>
