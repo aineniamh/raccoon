@@ -28,10 +28,18 @@ def load_metadata_map(metadata_path: str, id_field: str, delimiter: str) -> Dict
     return metadata
 
 
+def _infer_delimiter(path: str, default: str) -> str:
+    lowered = path.lower()
+    if lowered.endswith(".tsv") or lowered.endswith(".tab"):
+        return "\t"
+    return default
+
+
 def load_metadata_maps(metadata_paths: Iterable[str], id_field: str, delimiter: str) -> Dict[str, Dict[str, str]]:
     merged = {}
     for path in metadata_paths:
-        merged.update(load_metadata_map(path, id_field, delimiter))
+        effective_delimiter = _infer_delimiter(path, delimiter)
+        merged.update(load_metadata_map(path, id_field, effective_delimiter))
     return merged
 
 
@@ -42,8 +50,14 @@ def format_header(
     date_field: str,
     sep: str,
 ) -> str:
-    location = get_field(row, location_field)
-    date = get_field(row, date_field)
+    def _sanitize(value: str) -> str:
+        if value is None:
+            return ""
+        cleaned = str(value).strip()
+        return "_".join(cleaned.split())
+
+    location = _sanitize(get_field(row, location_field))
+    date = _sanitize(get_field(row, date_field))
     return f"{record_id}{sep}{location}{sep}{date}"
 
 

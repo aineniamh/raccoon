@@ -56,6 +56,7 @@ def main(args):
             mask_frame_break=mask_frame_break,
         )
 
+
         logging.info("Alignment QC completed")
         logging.info(f"High N sequences: {len(summary['high_n_sequences'])}")
         logging.info(f"Sites to mask: {len(summary['sites_to_mask'])}")
