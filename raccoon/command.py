@@ -6,7 +6,7 @@ import os
 import argparse
 import logging
 from raccoon import __version__, _program
-from raccoon.commands import alignment as alignment_cmd, phylo as phylo_cmd, combine as combine_cmd
+from raccoon.commands import alignment as alignment_cmd, phylo as phylo_cmd, combine as combine_cmd, mask as mask_cmd
 
 
 def build_parser():
@@ -20,7 +20,7 @@ def build_parser():
     c.add_argument('inputs', nargs='+', help='Input FASTA files (one or more)')
     c.add_argument('-o', '--output', default='combined.fasta', help='Output FASTA file (use - for stdout)')
     c.add_argument('--metadata', nargs='+', action='extend', default=None, help='Metadata CSV(s) for harmonised headers')
-    c.add_argument('--metadata-delimiter', default=',', help='Metadata delimiter (default: ,)')
+    c.add_argument('--metadata-delimiter', default=',', help='Metadata delimiter (default: ,; auto-detects .tsv/.tab)')
     c.add_argument('--metadata-id-field', default='id', help='Metadata id column (default: id)')
     c.add_argument('--metadata-location-field', default='location', help='Metadata location column (default: location)')
     c.add_argument('--metadata-date-field', default='date', help='Metadata date column (default: date)')
@@ -45,6 +45,14 @@ def build_parser():
     a.add_argument('--mask-gap-adjacent', default=True, action=argparse.BooleanOptionalAction, dest='mask_gap_adjacent', help='Mask SNPs adjacent to gaps (default: True)')
     a.add_argument('--mask-frame-break', default=True, action=argparse.BooleanOptionalAction, dest='mask_frame_break', help='Mask frame-breaking indels (default: True)')
     a.set_defaults(func=alignment_cmd.main)
+
+    m = sub.add_parser('mask', help='apply a mask file to an alignment')
+    m.add_argument('alignment', help='Input alignment fasta file')
+    m.add_argument('--mask-file', required=True, dest='mask_file', help='Mask CSV file from aln-qc')
+    m.add_argument('-o', '--output', dest='output', default=None, help='Output masked alignment file')
+    m.add_argument('-d', '--outdir', dest='outdir', default='.', help='Output directory')
+    m.add_argument('-t', '--sequence-type', choices=['nt','aa'], default='nt', dest='sequence_type', help='Sequence type (default: nt)')
+    m.set_defaults(func=mask_cmd.main)
 
     p = sub.add_parser('tree-qc', help='phylogenetic QC')
     p.add_argument('--assembly-refs', help='Assembly references fasta', dest='assembly_refs', default=None)
