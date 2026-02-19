@@ -34,7 +34,7 @@ def _plot_div(fig: go.Figure, div_id: Optional[str] = None) -> str:
         fig,
         include_plotlyjs="cdn",
         full_html=False,
-        config={"displayModeBar": False},
+        config={"displayModeBar": False, "showTips": False, "doubleClick": False},
         auto_play=False,
         div_id=div_id,
     )
@@ -226,7 +226,6 @@ def build_tree_plot(
     x_pad = (x_max - x_min) * 0.02 if x_values else 0.1
     x_min_pad = x_min - x_pad
     x_max_pad = x_max + x_pad
-    x_range_default = (x_min_pad, x_max_pad)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -262,6 +261,15 @@ def build_tree_plot(
         tip_label_x = [x + x_offset for x in tip_x]
     else:
         tip_label_x = []
+
+    label_max_x = max(tip_label_x) if tip_label_x else None
+    if label_max_x is not None:
+        label_span = (x_max - x_min) if x_values else 1.0
+        max_label_len = max((len(label) for label in tip_labels), default=0)
+        label_extra = label_span * max_label_len * 0.006
+        if label_max_x + label_extra > x_max_pad:
+            x_max_pad = label_max_x + label_extra + x_pad
+    x_range_default = (x_min_pad, x_max_pad)
 
     fig.add_trace(go.Scatter(
         x=tip_label_x,
