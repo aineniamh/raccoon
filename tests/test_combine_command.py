@@ -1,3 +1,4 @@
+import csv
 import textwrap
 from pathlib import Path
 
@@ -16,6 +17,8 @@ class MockArgs:
         self.header_separator = kwargs.get("header_separator", "|")
         self.id_delimiter = kwargs.get("id_delimiter", "|")
         self.id_field = kwargs.get("id_field", 0)
+        self.min_length = kwargs.get("min_length", None)
+        self.max_n_content = kwargs.get("max_n_content", None)
 
 
 def _write_fasta(path, entries):
@@ -233,3 +236,64 @@ def test_combine_id_field_out_of_range_keeps_full_id(tmp_path):
     assert result == 0
     text = out.read_text()
     assert text.startswith(">sample1|Loc1|2024-01-01")
+
+
+def _read_csv_rows(path: Path):
+    rows = []
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            rows.append(row)
+    return rows
+
+
+def test_combine_writes_filter_and_metadata_issue_csvs(tmp_path):
+    fasta_path = tmp_path / "inputs.fasta"
+    _write_fasta(
+        fasta_path,
+        [
+            ("seq1", "AAAA"),
+            ("seq2", "NNNN"),
+            ("seq3", "ACGTACGT"),
+        ],
+    )
+
+    metadata_path = tmp_path / "meta.tsv"
+    metadata_path.write_text(
+        textwrap.dedent(
+            """\
+            id\tlocation\tdate
+            seq1\tUSA\t2024-01-01
+            seq2\t\t2024-02-02
+            """
+        )
+    )
+
+    out = tmp_path / "combined.fasta"
+    args = MockArgs(
+        inputs=[str(fasta_path)],
+        output=str(out),
+        metadata=[str(metadata_path)],
+        metadata_delimiter=",",
+        min_length=5,
+        max_n_content=0.2,
+    )
+
+    result = combine.main(args)
+    assert result == 0
+
+    filter_csv = tmp_path / "seq_qc_filter_failures.csv"
+    metadata_csv = tmp_path / "seq_qc_metadata_issues.csv"
+    assert filter_csv.exists()
+    assert metadata_csv.exists()
+
+    filter_rows = _read_csv_rows(filter_csv)
+    filter_by_id = {row["id"]: row for row in filter_rows}
+    assert set(filter_by_id) == {"seq1", "seq2"}
+    assert filter_by_id["seq1"]["reason"] == "length < 5"
+    assert filter_by_id["seq2"]["reason"] == "length < 5; N content > 0.2"
+
+    metadata_rows = _read_csv_rows(metadata_csv)
+    issues = {(row["id"], row["issue"], row["status"]) for row in metadata_rows}
+    assert ("seq2", "missing location", "filtered") in issues
+    assert ("seq3", "missing metadata row", "kept") in issues
