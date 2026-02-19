@@ -881,7 +881,15 @@ def generate_phylo_report(outdir: str, treefile: str, flags_csv: Optional[str] =
         _apply_plot_style(fig)
         mutation_types_plot = _plot_div(fig)
 
-    tree_plot_html = build_tree_plot(treefile, tree_format=tree_format)
+    phylogeny_base = os.path.splitext(os.path.basename(treefile))[0]
+    branch_snps_path = os.path.join(outdir, f"{phylogeny_base}.branch_snps.reconstruction.csv")
+    if not os.path.exists(branch_snps_path):
+        branch_snps_path = None
+    tree_plot_html = build_tree_plot(
+        treefile,
+        tree_format=tree_format,
+        branch_snps_path=branch_snps_path,
+    )
 
     outpath = os.path.join(outdir, "tree-qc_report.html")
     context = {
