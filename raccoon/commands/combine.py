@@ -131,19 +131,74 @@ def main(args):
 
         filtered_count = 0
         kept_count = 0
+        filter_failures = []
+        metadata_issues = []
         try:
             for path in inputs:
                 for rec in SeqIO.parse(path, "fasta"):
                     seq = str(rec.seq)
                     seq_len = len(seq)
                     n_prop = n_content(seq)
-                    if min_length is not None and seq_len < min_length:
-                        filtered_count += 1
-                        continue
-                    if max_n_content is not None and n_prop > max_n_content:
-                        filtered_count += 1
-                        continue
                     parsed_id = parse_record_id(rec.id, id_delimiter, id_field)
+                    metadata_row = None
+                    location_value = ""
+                    date_value = ""
+                    if metadata_map is not None:
+                        metadata_row = metadata_map.get(parsed_id)
+                        if metadata_row:
+                            location_value = get_field(metadata_row, metadata_location_field).strip()
+                            date_value = get_field(metadata_row, metadata_date_field).strip()
+                        else:
+                            logging.warning("No metadata row found for %s", parsed_id)
+                    reasons = []
+                    if min_length is not None and seq_len < min_length:
+                        reasons.append(f"length < {min_length}")
+                    if max_n_content is not None and n_prop > max_n_content:
+                        reasons.append(f"N content > {max_n_content}")
+                    status = "filtered" if reasons else "kept"
+                    if metadata_map is not None:
+                        if metadata_row:
+                            if not location_value:
+                                metadata_issues.append({
+                                    "file": os.path.basename(path),
+                                    "id": rec.id,
+                                    "parsed_id": parsed_id,
+                                    "status": status,
+                                    "issue": "missing location",
+                                    "location": location_value,
+                                    "date": date_value,
+                                })
+                            if not date_value:
+                                metadata_issues.append({
+                                    "file": os.path.basename(path),
+                                    "id": rec.id,
+                                    "parsed_id": parsed_id,
+                                    "status": status,
+                                    "issue": "missing date",
+                                    "location": location_value,
+                                    "date": date_value,
+                                })
+                        else:
+                            metadata_issues.append({
+                                "file": os.path.basename(path),
+                                "id": rec.id,
+                                "parsed_id": parsed_id,
+                                "status": status,
+                                "issue": "missing metadata row",
+                                "location": "",
+                                "date": "",
+                            })
+                    if reasons:
+                        filter_failures.append({
+                            "file": os.path.basename(path),
+                            "id": rec.id,
+                            "parsed_id": parsed_id,
+                            "length": seq_len,
+                            "n_content": round(n_prop, 6),
+                            "reason": "; ".join(reasons),
+                        })
+                        filtered_count += 1
+                        continue
                     header = rec.id
                     if metadata_map is not None:
                         row = metadata_map.get(parsed_id)
@@ -155,19 +210,38 @@ def main(args):
                                 metadata_date_field,
                                 header_separator,
                             )
-                        else:
-                            logging.warning("No metadata row found for %s", parsed_id)
                     write_fasta_record(out_handle, header, seq)
                     kept_count += 1
         finally:
             if close_handle:
                 out_handle.close()
 
+        report_outdir = os.path.dirname(output_path) or os.getcwd()
+        if not io.ensure_output_directory(report_outdir):
+            return 1
+        if min_length is not None or max_n_content is not None:
+            filter_csv = os.path.join(report_outdir, "seq_qc_filter_failures.csv")
+            with open(filter_csv, "w", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=["file", "id", "parsed_id", "length", "n_content", "reason"],
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+                writer.writerows(filter_failures)
+        if metadata_map is not None:
+            metadata_csv = os.path.join(report_outdir, "seq_qc_metadata_issues.csv")
+            with open(metadata_csv, "w", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=["file", "id", "parsed_id", "status", "issue", "location", "date"],
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+                writer.writerows(metadata_issues)
+
         try:
             from raccoon.utils import reporting
-            report_outdir = os.path.dirname(output_path) or os.getcwd()
-            if not io.ensure_output_directory(report_outdir):
-                return 1
             reporting.generate_combine_report(
                 outdir=report_outdir,
                 output_fasta=output_path if output_path != "-" else "",
@@ -179,6 +253,8 @@ def main(args):
                 header_separator=header_separator,
                 min_length=min_length,
                 max_n_content=max_n_content,
+                filter_failures=filter_failures,
+                metadata_issues=metadata_issues,
             )
         except Exception:
             logging.exception("Failed to generate combine report")
