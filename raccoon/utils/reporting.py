@@ -19,7 +19,7 @@ from plotly.offline import plot
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .reconstruction_functions import load_tree, ensure_node_label
-from .bot_baltic import build_tree_plot
+from .plotly_baltic import build_tree_plot
 
 
 def _svg_data_uri(path: str) -> str:

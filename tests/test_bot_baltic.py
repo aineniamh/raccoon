@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from raccoon.utils import bot_baltic
+from raccoon.utils import plotly_baltic
 
 
 class FakeNode:
@@ -56,8 +56,8 @@ def _write_branch_snps_csv(path: Path) -> None:
 
 @pytest.fixture(autouse=True)
 def patch_tree(monkeypatch):
-    monkeypatch.setattr(bot_baltic, "load_tree", lambda *_args, **_kwargs: FakeTree())
-    monkeypatch.setattr(bot_baltic, "ensure_node_label", lambda node: node.name)
+    monkeypatch.setattr(plotly_baltic, "load_tree", lambda *_args, **_kwargs: FakeTree())
+    monkeypatch.setattr(plotly_baltic, "ensure_node_label", lambda node: node.name)
     yield
 
 
@@ -65,7 +65,7 @@ def test_build_tree_plot_includes_branch_mutations_and_labels(tmp_path):
     csv_path = tmp_path / "branch_snps.csv"
     _write_branch_snps_csv(csv_path)
 
-    html = bot_baltic.build_tree_plot("tree", branch_snps_path=str(csv_path))
+    html = plotly_baltic.build_tree_plot("tree", branch_snps_path=str(csv_path))
 
     assert "Branch: root_tipA" in html
     assert ("10: G->A (GA)" in html) or ("10: G-\\u003eA (GA)" in html)
@@ -75,6 +75,6 @@ def test_build_tree_plot_includes_branch_mutations_and_labels(tmp_path):
 
 
 def test_build_tree_plot_without_branch_snps(tmp_path):
-    html = bot_baltic.build_tree_plot("tree", branch_snps_path=str(tmp_path / "missing.csv"))
+    html = plotly_baltic.build_tree_plot("tree", branch_snps_path=str(tmp_path / "missing.csv"))
     assert "Reset view" in html
     assert "Branch:" not in html
